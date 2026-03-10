@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          animation: {
+            blob: "blob 7s infinite",
+            "gradient-x": "gradient-x 3s ease infinite",
+            float: "float 6s ease-in-out infinite",
+            "float-delayed": "float-delayed 5.5s ease-in-out infinite 1s",
+            "float-fast": "float-fast 4s ease-in-out infinite",
+            dash: "dash 20s linear infinite",
+          },
+          keyframes: {
+            blob: {
+              "0%": { transform: "translate(0px, 0px) scale(1)" },
+              "33%": { transform: "translate(30px, -50px) scale(1.1)" },
+              "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
+              "100%": { transform: "translate(0px, 0px) scale(1)" },
+            },
+            "gradient-x": {
+              "0%, 100%": {
+                "background-size": "200% 200%",
+                "background-position": "left center"
+              },
+              "50%": {
+                "background-size": "200% 200%",
+                "background-position": "right center"
+              }
+            },
+            float: {
+              "0%": { transform: "translateY(0px) rotateY(-10deg) rotateX(5deg)" },
+              "50%": { transform: "translateY(-20px) rotateY(-10deg) rotateX(5deg)" },
+              "100%": { transform: "translateY(0px) rotateY(-10deg) rotateX(5deg)" },
+            },
+            "float-delayed": {
+              "0%": { transform: "translateY(0px) rotate(5deg)" },
+              "50%": { transform: "translateY(-15px) rotate(5deg)" },
+              "100%": { transform: "translateY(0px) rotate(5deg)" },
+            },
+            "float-fast": {
+              "0%": { transform: "translateY(0px) rotate(-5deg)" },
+              "50%": { transform: "translateY(-10px) rotate(-5deg)" },
+              "100%": { transform: "translateY(0px) rotate(-5deg)" },
+            },
+            dash: {
+              to: {
+                "stroke-dashoffset": "-100"
+              }
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .animation-delay-2000 {
+      animation-delay: 2s;
+    }
+
+    .animation-delay-4000 {
+      animation-delay: 4s;
+    }
+
+    .perspective-1000 {
+      perspective: 1000px;
+    }
+  </style>
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <title>locomotion-react</title>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+
+</html>
