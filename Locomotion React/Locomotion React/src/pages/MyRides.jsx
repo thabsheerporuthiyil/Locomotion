@@ -1,16 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import api from "../api/axios";
-import { Clock, MapPin, Navigation, Car, RefreshCw, CreditCard, Star, X, CheckCircle, MessageSquare } from "lucide-react";
+import { Clock, MapPin, Navigation, Car, RefreshCw, CreditCard, Star, X, CheckCircle, MessageSquare, Map } from "lucide-react";
 import { requestFirebaseNotificationPermission, onMessageListener } from "../firebase";
 import ChatBox from "../components/ChatBox";
+import LiveTrackingMap from "../components/LiveTrackingMap";
 
 export default function MyRides() {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [processingPayment, setProcessingPayment] = useState(false);
 
-    // Chat State
+    // Chat / Tracking State
     const [activeChatRideId, setActiveChatRideId] = useState(null);
+    const [trackingRideId, setTrackingRideId] = useState(null);
     const [unreadMessages, setUnreadMessages] = useState({});
 
     // Robust Polling Refs for Unread Dot
@@ -78,7 +80,6 @@ export default function MyRides() {
         requestFirebaseNotificationPermission()
             .then((token) => {
                 if (token) {
-                    console.log("FCM Token Generated for Rider, sending to backend...");
                     api.post("accounts/update-fcm-token/", { fcm_token: token })
                         .catch(err => console.error("Failed to save token to backend:", err));
                 }
@@ -87,7 +88,6 @@ export default function MyRides() {
 
         // Listen for foreground push notifications continuously
         const unsubscribe = onMessageListener((payload) => {
-            console.log("Foreground push notification received:", payload);
             fetchRequests(); // Refresh the board
             const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
             audio.play().catch(e => console.log("Audio play blocked"));
@@ -108,7 +108,6 @@ export default function MyRides() {
         // Listen for messages from the Service Worker
         const channel = new BroadcastChannel('locomotion-fcm-channel');
         channel.onmessage = (event) => {
-            console.log("Service Worker broadcast received:", event.data);
             fetchRequests(); // Refresh the board
             const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
             audio.play().catch(e => console.log("Audio play blocked"));
@@ -288,7 +287,18 @@ export default function MyRides() {
                                         )}
 
                                         {/* Status / Actions Container */}
-                                        <div className="col-span-2 sm:col-span-1 border-t border-slate-200 sm:border-t-0 sm:border-l sm:pl-4 pt-3 sm:pt-0 flex flex-col gap-2 justify-center h-full">
+                                        <div className="col-span-2 sm:col-span-all border-t border-slate-200 sm:border-t-0 sm:pl-0 pt-3 sm:pt-4 flex flex-col gap-2 justify-center h-full">
+
+                                            {/* Live Tracking Button */}
+                                            {['accepted', 'arrived', 'in_progress'].includes(ride.status) && (
+                                                <button
+                                                    onClick={() => setTrackingRideId(ride.id)}
+                                                    className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-xl font-bold shadow-sm hover:bg-slate-800 transition-colors text-sm relative"
+                                                >
+                                                    <Map size={16} />
+                                                    Track Driver
+                                                </button>
+                                            )}
 
                                             {/* Chat Button */}
                                             {['accepted', 'arrived', 'in_progress'].includes(ride.status) && (
@@ -298,7 +308,7 @@ export default function MyRides() {
                                                         // Clear unread mark when opened
                                                         setUnreadMessages(prev => ({ ...prev, [ride.id]: false }));
                                                     }}
-                                                    className="w-full flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl font-bold shadow-sm hover:bg-indigo-100 transition-colors text-sm mb-2 relative"
+                                                    className="w-full flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl font-bold shadow-sm hover:bg-indigo-100 transition-colors text-sm relative"
                                                 >
                                                     <MessageSquare size={16} />
                                                     Chat with Driver
@@ -313,7 +323,7 @@ export default function MyRides() {
 
                                             {/* Payment Notice */}
                                             {ride.status === 'completed' && !ride.is_paid && (
-                                                <div className="w-full text-center bg-gray-100 text-gray-700 px-4 py-3 rounded-xl shadow-inner text-sm font-semibold flex items-center justify-center gap-2">
+                                                <div className="w-full text-center bg-gray-100 text-gray-700 px-4 py-3 rounded-xl shadow-inner text-sm font-semibold flex items-center justify-center gap-2 mt-2">
                                                     <CreditCard size={16} className="text-gray-500" />
                                                     Pay ₹{ride.estimated_fare} via Cash/UPI
                                                 </div>
@@ -321,7 +331,7 @@ export default function MyRides() {
 
                                             {/* Payment Verified */}
                                             {ride.status === 'completed' && ride.is_paid && (
-                                                <div className="w-full text-center bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm">
+                                                <div className="w-full text-center bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-sm mt-2">
                                                     <CheckCircle size={16} />
                                                     Payment Verified
                                                 </div>
@@ -329,7 +339,7 @@ export default function MyRides() {
 
                                             {/* Rating Area */}
                                             {ride.status === 'completed' && (
-                                                <div className="w-full flex justify-end">
+                                                <div className="w-full flex justify-end mt-2">
                                                     {ride.rating ? (
                                                         <div className="flex flex-col items-end">
                                                             <div className="flex text-amber-500">
@@ -423,6 +433,14 @@ export default function MyRides() {
                 <ChatBox
                     rideId={activeChatRideId}
                     onClose={() => setActiveChatRideId(null)}
+                />
+            )}
+
+            {/* Live Tracking Map Modal */}
+            {trackingRideId && (
+                <LiveTrackingMap
+                    rideId={trackingRideId}
+                    onClose={() => setTrackingRideId(null)}
                 />
             )}
         </div>

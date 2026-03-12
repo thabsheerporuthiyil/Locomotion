@@ -1,59 +1,14 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import api from "../api/axios";
 import { useAuthStore } from "../store/authStore";
-import { Plus, Car, FileText, CheckCircle, Clock, XCircle, MapPin, Navigation, MessageSquare } from "lucide-react";
+import { Plus, Car, FileText, CheckCircle, Navigation, XCircle } from "lucide-react";
 import { requestFirebaseNotificationPermission, onMessageListener } from "../firebase";
-import ChatBox from "../components/ChatBox";
 
 export default function DriverDashboard() {
     const { name } = useAuthStore();
     const [vehicles, setVehicles] = useState([]);
-    const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
-    const [otpInputs, setOtpInputs] = useState({});
-
-    // Chat State
-    const [activeChatRideId, setActiveChatRideId] = useState(null);
-    const [unreadMessages, setUnreadMessages] = useState({});
-
-    // Robust Polling Refs for Unread Dot
-    const activeChatRef = useRef(null);
-    useEffect(() => { activeChatRef.current = activeChatRideId; }, [activeChatRideId]);
-    const latestMessageIdsRef = useRef({});
-
-    // Polling effect for unread messages (Fallback for Brave/Safari & listener bugs)
-    useEffect(() => {
-        const checkUnreadChats = async () => {
-            const activeRides = requests.filter(r => ['accepted', 'arrived', 'in_progress'].includes(r.status));
-
-            for (const ride of activeRides) {
-                try {
-                    const res = await api.get(`bookings/${ride.id}/chat/`);
-                    const messages = res.data;
-
-                    if (messages.length > 0) {
-                        const latestId = messages[messages.length - 1].id;
-                        const prevLatest = latestMessageIdsRef.current[ride.id];
-
-                        // If there is a new message and chat is not currently open
-                        if (prevLatest && prevLatest !== latestId && activeChatRef.current !== ride.id) {
-                            setUnreadMessages(prev => ({ ...prev, [ride.id]: true }));
-                        }
-
-                        latestMessageIdsRef.current[ride.id] = latestId;
-                    }
-                } catch (err) {
-                    console.error("Unread chat check error:", err);
-                }
-            }
-        };
-
-        const interval = setInterval(checkUnreadChats, 5000);
-        checkUnreadChats(); // Run immediately on mount or requests change
-
-        return () => clearInterval(interval);
-    }, [requests]);
 
     // Wallet State
     const [walletBalance, setWalletBalance] = useState(0);
@@ -83,10 +38,9 @@ export default function DriverDashboard() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [vehiclesRes, availabilityRes, requestsRes] = await Promise.all([
+            const [vehiclesRes, availabilityRes] = await Promise.all([
                 api.get("drivers/vehicles/"),
                 api.get("drivers/availability/"),
-                api.get("bookings/driver-requests/")
             ]);
 
             setVehicles(vehiclesRes.data);
@@ -96,8 +50,6 @@ export default function DriverDashboard() {
             if (availabilityRes.data.wallet_balance !== undefined) {
                 setWalletBalance(parseFloat(availabilityRes.data.wallet_balance));
             }
-
-            setRequests(requestsRes.data);
 
         } catch (err) {
             console.error(err);
@@ -115,33 +67,6 @@ export default function DriverDashboard() {
         }
     };
 
-    const handleRequestAction = useCallback(async (id, action, extraData = null) => {
-        try {
-            await api.post(`bookings/${id}/${action}/`, extraData);
-            // Refresh requests
-            const res = await api.get("bookings/driver-requests/");
-            setRequests(res.data);
-
-            // Clear OTP input if successful
-            if (action === 'start_trip') {
-                setOtpInputs(prev => ({ ...prev, [id]: "" }));
-            }
-
-            // If completed a trip, update the wallet balance showing instantly
-            if (action === 'complete') {
-                const availRes = await api.get("drivers/availability/");
-                if (availRes.data.wallet_balance !== undefined) {
-                    setWalletBalance(parseFloat(availRes.data.wallet_balance));
-                }
-            }
-
-            alert(`Ride ${action}ed successfully`);
-        } catch (err) {
-            console.error(err);
-            alert(err.response?.data?.error || "Failed to update ride status");
-        }
-    }, []);
-
     useEffect(() => {
         fetchData();
         // Load Categories
@@ -157,65 +82,32 @@ export default function DriverDashboard() {
         requestFirebaseNotificationPermission()
             .then((token) => {
                 if (token) {
-                    console.log("FCM Token Generated, sending to backend...");
                     api.post("accounts/update-fcm-token/", { fcm_token: token })
                         .catch(err => console.error("Failed to save token to backend:", err));
                 }
             })
             .catch((err) => console.error("Firebase permission error", err));
 
-        // Listen for foreground push notifications continuously
+        // Listen for foreground push notifications (e.g. Wallet Updates, Admin Approvals)
         const unsubscribe = onMessageListener((payload) => {
-            console.log("Foreground push notification received:", payload);
             fetchData(); // Refresh the board
             const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
             audio.play().catch(e => console.log("Audio play blocked"));
-
-            // Check if it's a chat message and the chat box isn't currently open for this ride
-            if (payload?.data?.type === "chat_message") {
-                const incomingRideId = parseInt(payload.data.ride_id, 10);
-                setUnreadMessages(prev => {
-                    // Only mark as unread if we aren't actively chatting in this ride
-                    if (activeChatRideId !== incomingRideId) {
-                        return { ...prev, [incomingRideId]: true };
-                    }
-                    return prev;
-                });
-            }
         });
 
-        // Listen for messages from the Service Worker (in case Firebase handles it as background while tab is blurred)
         const channel = new BroadcastChannel('locomotion-fcm-channel');
         channel.onmessage = (event) => {
-            console.log("Service Worker broadcast received:", event.data);
             fetchData(); // Refresh the board
             const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
             audio.play().catch(e => console.log("Audio play blocked"));
-
-            if (event.data?.data?.type === "chat_message") {
-                const incomingRideId = parseInt(event.data.data.ride_id, 10);
-                setUnreadMessages(prev => {
-                    if (activeChatRideId !== incomingRideId) {
-                        return { ...prev, [incomingRideId]: true };
-                    }
-                    return prev;
-                });
-            }
         };
 
-        // Fallback polling: refresh ride requests every 10 seconds to ensure no dropped rides
-        const pollInterval = setInterval(() => {
-            api.get("bookings/driver-requests/")
-                .then(res => setRequests(res.data))
-                .catch(err => console.log("Polling error:", err));
-        }, 10000);
-
         return () => {
-            document.body.removeChild(script);
-            // Unsubscribe from foreground listener on unmount
+            if (document.body.contains(script)) {
+                document.body.removeChild(script);
+            }
             if (unsubscribe) unsubscribe();
             channel.close();
-            clearInterval(pollInterval);
         }
     }, []);
 
@@ -321,7 +213,6 @@ export default function DriverDashboard() {
                         // 4. Update the wallet balance in UI
                         if (verifyRes.data.new_balance !== undefined) {
                             setWalletBalance(parseFloat(verifyRes.data.new_balance));
-                            // Re-fetch to unlock the requests view
                             fetchData();
                         }
                     } catch (verifyErr) {
@@ -365,7 +256,11 @@ export default function DriverDashboard() {
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">Driver Dashboard</h1>
-                        <p className="text-gray-500 mt-1">Manage your rides and vehicles</p>
+                        <p className="text-gray-500 mt-1">Manage your vehicles and account status.</p>
+                        <p className="text-indigo-600 text-sm font-semibold mt-2">
+                            <Navigation size={14} className="inline mr-1" />
+                            Please use the Mobile App to accept and manage ride requests.
+                        </p>
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -401,10 +296,9 @@ export default function DriverDashboard() {
                     </div>
                 </div>
 
-                {/* Ride Requests Section or Lockout Screen */}
-                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-
-                    {isLockedOut ? (
+                {/* Lockout Warning */}
+                {isLockedOut && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                         <div className="text-center py-12 px-4 bg-red-50 rounded-xl border border-red-200">
                             <XCircle className="mx-auto h-16 w-16 text-red-500 mb-4" />
                             <h2 className="text-2xl font-black text-red-900 mb-2">Account Locked</h2>
@@ -423,199 +317,8 @@ export default function DriverDashboard() {
                                 </button>
                             </div>
                         </div>
-                    ) : (
-                        <>
-                            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                                <Navigation size={24} className="text-indigo-600" />
-                                Ride Requests
-                            </h2>
-
-                            {loading ? (
-                                <p>Loading requests...</p>
-                            ) : requests.length === 0 ? (
-                                <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                                    <p className="text-gray-500">No active ride requests.</p>
-                                </div>
-                            ) : (
-                                <div className="space-y-4">
-                                    {requests.map(req => (
-                                        <div key={req.id} className="border border-gray-100 rounded-xl p-5 hover:bg-slate-50 transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                                            <div className="space-y-2 flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                                                        req.status === 'accepted' ? 'bg-indigo-100 text-indigo-700' :
-                                                            req.status === 'arrived' ? 'bg-blue-100 text-blue-700' :
-                                                                req.status === 'in_progress' ? 'bg-green-100 text-green-700' :
-                                                                    req.status === 'rejected' ? 'bg-red-100 text-red-700' :
-                                                                        'bg-gray-100 text-gray-700'
-                                                        }`}>
-                                                        {req.status.replace("_", " ")}
-                                                    </span>
-                                                    <span className="text-sm text-gray-500">{new Date(req.created_at).toLocaleString()}</span>
-                                                </div>
-
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div>
-                                                        <p className="text-xs text-gray-400 font-bold uppercase">Pickup</p>
-                                                        <p className="font-medium text-gray-800">{req.source_location}</p>
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-xs text-gray-400 font-bold uppercase">Destination</p>
-                                                        <p className="font-medium text-gray-800">{req.destination_location}</p>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex gap-4 mt-2">
-                                                    <p className="text-sm">🛣️ <b>{req.distance_km} km</b></p>
-                                                    <p className="text-sm">💰 <b>₹{req.estimated_fare}</b></p>
-                                                </div>
-
-                                                {req.status === 'accepted' && (
-                                                    <div className="bg-green-50 p-3 rounded-lg border border-green-100 mt-2">
-                                                        <p className="text-sm font-semibold text-green-800">Rider Contact:</p>
-                                                        <p className="text-lg font-bold text-green-900">{req.rider_phone || "Not available"}</p>
-                                                        <p className="text-sm text-green-700">{req.rider_name}</p>
-                                                        <div className="flex flex-col gap-2 mt-3">
-                                                            <a
-                                                                href={`https://www.google.com/maps/dir/?api=1&destination=${req.source_lat},${req.source_lng}`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="inline-flex items-center gap-2 text-indigo-600 hover:underline font-medium text-sm"
-                                                            >
-                                                                <Navigation size={14} /> Navigate to Rider's Location
-                                                            </a>
-                                                            <a
-                                                                href={`https://www.google.com/maps/dir/?api=1&origin=${req.source_lat},${req.source_lng}&destination=${req.destination_lat},${req.destination_lng}`}
-                                                                target="_blank"
-                                                                rel="noreferrer"
-                                                                className="inline-flex items-center gap-2 text-blue-600 hover:underline font-medium text-sm pt-1 border-t border-green-200"
-                                                            >
-                                                                <MapPin size={14} /> Navigate Ride Route (Pickup to Dropoff)
-                                                            </a>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Chat Toggle Button */}
-                                                {['accepted', 'arrived', 'in_progress'].includes(req.status) && (
-                                                    <button
-                                                        onClick={() => {
-                                                            setActiveChatRideId(req.id);
-                                                            // Clear unread mark when opened
-                                                            setUnreadMessages(prev => ({ ...prev, [req.id]: false }));
-                                                        }}
-                                                        className="w-full mt-3 flex items-center justify-center gap-2 bg-indigo-50 text-indigo-700 border border-indigo-200 px-4 py-2 rounded-xl font-bold shadow-sm hover:bg-indigo-100 transition-colors text-sm relative"
-                                                    >
-                                                        <MessageSquare size={16} />
-                                                        Chat with Rider
-                                                        {unreadMessages[req.id] && (
-                                                            <span className="absolute top-0 right-0 -mt-1 -mr-1 flex h-3 w-3">
-                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                                                                <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                                                            </span>
-                                                        )}
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            {/* Pending Actions */}
-                                            {req.status === 'pending' && (
-                                                <div className="flex flex-col gap-2 min-w-[120px]">
-                                                    <button
-                                                        onClick={() => handleRequestAction(req.id, "accept")}
-                                                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition"
-                                                    >
-                                                        Accept
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleRequestAction(req.id, "reject")}
-                                                        className="bg-red-100 text-red-600 px-4 py-2 rounded-lg font-semibold hover:bg-red-200 transition"
-                                                    >
-                                                        Reject
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {/* Accepted Actions */}
-                                            {req.status === 'accepted' && (
-                                                <div className="flex flex-col gap-2 min-w-[120px]">
-                                                    <button
-                                                        onClick={() => handleRequestAction(req.id, "arrive")}
-                                                        className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition"
-                                                    >
-                                                        Arrived at Pickup
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {/* Arrived Actions (OTP) */}
-                                            {req.status === 'arrived' && (
-                                                <div className="flex flex-col justify-end gap-2 min-w-[150px]">
-                                                    <div className="flex flex-col gap-1">
-                                                        <label className="text-xs font-semibold text-gray-500 uppercase">Enter Rider PIN</label>
-                                                        <div className="flex gap-2">
-                                                            <input
-                                                                type="text"
-                                                                maxLength={4}
-                                                                placeholder="0000"
-                                                                value={otpInputs[req.id] || ""}
-                                                                onChange={(e) => setOtpInputs({ ...otpInputs, [req.id]: e.target.value })}
-                                                                className="w-20 text-center font-bold tracking-widest border border-gray-300 rounded-lg py-2"
-                                                            />
-                                                            <button
-                                                                onClick={() => handleRequestAction(req.id, "start_trip", { otp: otpInputs[req.id] })}
-                                                                disabled={!otpInputs[req.id] || otpInputs[req.id].length !== 4}
-                                                                className="flex-1 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:opacity-50"
-                                                            >
-                                                                Start
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {/* In Progress Actions */}
-                                            {req.status === 'in_progress' && (
-                                                <div className="flex flex-col gap-2 min-w-[120px]">
-                                                    <button
-                                                        onClick={() => handleRequestAction(req.id, "complete")}
-                                                        className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-bold shadow-md hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-                                                    >
-                                                        <CheckCircle size={18} /> Complete Trip
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {/* Completed Actions (Payment Collection) */}
-                                            {req.status === 'completed' && !req.is_paid && (
-                                                <div className="flex flex-col gap-2 min-w-[150px] bg-emerald-50 border border-emerald-200 p-3 rounded-xl text-center">
-                                                    <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mb-1">Collect Cash / UPI</p>
-                                                    <p className="text-2xl font-black text-emerald-700">₹{req.estimated_fare}</p>
-                                                    <p className="text-[10px] text-emerald-600 mt-1 mb-2">Ride Completed</p>
-
-                                                    <button
-                                                        onClick={() => handleRequestAction(req.id, "confirm_payment")}
-                                                        className="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-emerald-700 transition flex items-center justify-center gap-1.5"
-                                                    >
-                                                        <CheckCircle size={14} /> Confirm Payment
-                                                    </button>
-                                                </div>
-                                            )}
-
-                                            {/* Fully Settled Actions (Done) */}
-                                            {req.status === 'completed' && req.is_paid && (
-                                                <div className="flex flex-col gap-1 min-w-[120px] bg-gray-50 border border-gray-200 p-3 rounded-xl text-center">
-                                                    <CheckCircle className="mx-auto h-6 w-6 text-green-500 mb-1" />
-                                                    <p className="text-xs font-bold text-gray-700 uppercase tracking-wide">Paid & Finished</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </>
-                    )}
-                </div>
+                    </div>
+                )}
 
                 {/* Vehicles Grid */}
                 <div>
@@ -813,14 +516,6 @@ export default function DriverDashboard() {
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* Chat Box Element */}
-            {activeChatRideId && (
-                <ChatBox
-                    rideId={activeChatRideId}
-                    onClose={() => setActiveChatRideId(null)}
-                />
             )}
         </div>
     );

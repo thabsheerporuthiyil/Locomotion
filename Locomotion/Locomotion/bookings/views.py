@@ -4,6 +4,7 @@ import random
 import boto3
 import requests
 from django.conf import settings
+from django.core.mail import send_mail
 from django.db.models import Avg, Count
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -16,8 +17,7 @@ from drivers.permissions import IsActiveDriver
 from drivers.tasks import sync_driver_to_qdrant
 
 from .models import RideRequest
-from .serializers import (RideRatingSerializer, RideRequestCreateSerializer,
-                          RideRequestSerializer)
+from .serializers import (RideRatingSerializer, RideRequestCreateSerializer, RideRequestSerializer)
 
 
 class CalculateFareView(APIView):
@@ -175,7 +175,7 @@ class CreateRideRequestView(APIView):
                 user.phone_number = provided_phone
                 user.save()
 
-            distance_km = serializer.validated_data.get("distance_km", 0)
+            distance_km = serializer.validated_data.get("distance_km", 0) # type: ignore
 
             # --- Service Charge Logic ---
             if distance_km <= 5.0:
@@ -192,7 +192,7 @@ class CreateRideRequestView(APIView):
                 rider=user, ride_otp=ride_otp, service_charge=service_charge
             )
             # --- Email Notification ---
-            driver_profile = ride_request.driver
+            driver_profile = ride_request.driver # type: ignore
             if (
                 driver_profile
                 and hasattr(driver_profile, "user")
@@ -203,19 +203,23 @@ class CreateRideRequestView(APIView):
                     from django.core.mail import send_mail
 
                     subject = "New Ride Request - Locomotion"
-                    message = f"New ride request from {ride_request.source_location} to {ride_request.destination_location}. Please check Locomotion App."
+                    message = f"New ride request from {ride_request.source_location} to {ride_request.destination_location}. Please check Locomotion App." # type: ignore
+                    pickup = ride_request.source_location  # type: ignore
+                    dropoff = ride_request.destination_location  # type: ignore
+
                     html_message = f"""
                     <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; max-width: 600px;">
-                        <h2 style="color: #3b82f6;">New Ride Request!</h2>
-                        <p style="font-size: 16px; color: #333;">You have a new ride request waiting in your dashboard.</p>
-                        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
-                            <p style="margin: 5px 0;"><strong>Pickup:</strong> {ride_request.source_location}</p>
-                            <p style="margin: 5px 0;"><strong>Dropoff:</strong> {ride_request.destination_location}</p>
-                        </div>
-                        <p style="color: #555;">Please log in to the <strong>Locomotion Driver Dashboard</strong> to accept or reject this ride.</p>
+                    <h2 style="color: #3b82f6;">New Ride Request</h2>
+                    <p style="font-size: 16px; color: #333;">You have a new ride request waiting in your dashboard.</p>
+
+                    <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;">
+                    <p style="margin: 5px 0;"><strong>Pickup:</strong> {pickup}</p>
+                    <p style="margin: 5px 0;"><strong>Dropoff:</strong> {dropoff}</p>
+                    </div>
+
+                    <p style="color: #555;">Please log in to the <strong>Locomotion Driver Dashboard</strong> to accept or reject this ride.</p>
                     </div>
                     """
-
                     send_mail(
                         subject=subject,
                         message=message,
@@ -231,7 +235,7 @@ class CreateRideRequestView(APIView):
                     print(f"Failed to send Email Notification: {e}")
 
             # --- Push Notification via AWS SQS ---
-            driver_profile = ride_request.driver
+            driver_profile = ride_request.driver # type: ignore
             if (
                 driver_profile
                 and hasattr(driver_profile, "user")
@@ -253,9 +257,9 @@ class CreateRideRequestView(APIView):
                         message_body = {
                             "fcm_token": driver_profile.user.fcm_device_token,
                             "title": "New Ride Request! 🚗",
-                            "body": f"From: {ride_request.source_location} To: {ride_request.destination_location}",
+                            "body": f"From: {ride_request.source_location} To: {ride_request.destination_location}", # type: ignore
                             "data": {
-                                "ride_id": str(ride_request.id),
+                                "ride_id": str(ride_request.id), # type: ignore
                                 "type": "new_ride",
                             },
                         }
@@ -482,8 +486,23 @@ class RideRequestActionView(APIView):
             # --- Prepaid Commission Wallet Deduction ---
             driver_profile = ride_request.driver
             if ride_request.service_charge:
+                old_balance = driver_profile.wallet_balance
                 driver_profile.wallet_balance -= ride_request.service_charge
                 driver_profile.save()
+
+                if old_balance > -100.00 and driver_profile.wallet_balance <= -100.00:
+                    driver_email = getattr(driver_profile.user, 'email', None)
+                    if driver_email:
+                        try:
+                            send_mail(
+                                subject="Action Required: Locomotion Account Blocked Due to Low Balance",
+                                message=f"Hello,\n\nYour driver wallet balance has dropped to {driver_profile.wallet_balance} INR, which is below the minimum required balance of -100.00 INR.\n\nAs a result, your account has been temporarily blocked from receiving new ride requests. To resume driving, please login to the Locomotion Web Portal and recharge your wallet.\n\nThank you,\nThe Locomotion Team",
+                                from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else None,
+                                recipient_list=[driver_email],
+                                fail_silently=True,
+                            )
+                        except Exception as e:
+                            print(f"Failed to send wallet block email to {driver_email}: {e}")
 
         elif action == "confirm_payment":
             ride_request.is_paid = True
@@ -520,19 +539,19 @@ class RideRequestActionView(APIView):
                             "cancel": "Ride Cancelled ❌",
                         }
                         bodies = {
-                            "accept": f"{ride_request.driver_name} is on the way.",
-                            "arrive": f"{ride_request.driver_name} has arrived at the pickup location.",
+                            "accept": f"{ride_request.driver_name} is on the way.", # type: ignore
+                            "arrive": f"{ride_request.driver_name} has arrived at the pickup location.", # type: ignore
                             "start_trip": "Your trip has started. Have a safe journey!",
                             "complete": f"You have reached your destination. Fare: ₹{ride_request.estimated_fare}",
                             "cancel": "Your ride has been cancelled.",
-                        }
+                        } 
 
                         message_body = {
                             "fcm_token": rider.fcm_device_token,
                             "title": titles.get(action, "Ride Update"),
                             "body": bodies.get(action, "Your ride status has changed."),
                             "data": {
-                                "ride_id": str(ride_request.id),
+                                "ride_id": str(ride_request.id), # type: ignore
                                 "type": "ride_update",
                                 "status": ride_request.status,
                             },
@@ -592,8 +611,8 @@ class RateRideView(APIView):
 
         serializer = RideRatingSerializer(data=request.data)
         if serializer.is_valid():
-            ride.rating = serializer.validated_data["rating"]
-            ride.feedback = serializer.validated_data.get("feedback", "")
+            ride.rating = serializer.validated_data["rating"] # type: ignore
+            ride.feedback = serializer.validated_data.get("feedback", "") # type: ignore
             ride.save()
 
             # Update Driver's Average Rating
@@ -608,7 +627,7 @@ class RateRideView(APIView):
             driver_profile.save()
 
             # Trigger background AI synchronization to include the new review
-            sync_driver_to_qdrant.delay(driver_profile.id)
+            sync_driver_to_qdrant.delay(driver_profile.id) # type: ignore
 
             return Response(
                 {"message": "Rating submitted successfully."}, status=status.HTTP_200_OK
@@ -731,9 +750,9 @@ class SendMessageView(APIView):
                             "title": f"New Message from {'Rider' if is_rider else 'Driver'}",
                             "body": message_text,
                             "data": {
-                                "ride_id": str(ride.id),
+                                "ride_id": str(ride.id), # type: ignore
                                 "type": "chat_message",
-                                "message_id": str(chat_message.id),
+                                "message_id": str(chat_message.id), # type: ignore
                                 "sender_name": sender.name,
                                 "message_text": message_text,
                             },

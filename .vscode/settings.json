@@ -1,0 +1,11 @@
+{
+  // Point VS Code/Pylance at the backend virtualenv shipped with this repo.
+  "python.defaultInterpreterPath": "${workspaceFolder}/Locomotion/env/Scripts/python.exe",
+
+  // Let Pylance resolve local Django apps like `accounts`, `bookings`, etc.
+  "python.analysis.extraPaths": ["${workspaceFolder}/Locomotion/Locomotion"],
+
+  // Optional: load backend env vars (doesn't affect imports, but helps run/debug).
+  "python.envFile": "${workspaceFolder}/Locomotion/Locomotion/.env"
+}
+

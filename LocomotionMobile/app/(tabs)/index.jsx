@@ -1,13 +1,15 @@
 import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/context/AuthContext';
 
 export default function HomeScreen() {
   const router = useRouter();
+  const { signOut, user } = useAuth();
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Locomotion Live</Text>
-      <Text style={styles.subtitle}>Choose your role to test live tracking</Text>
+      <Text style={styles.subtitle}>Welcome, {user?.name || 'User'}!</Text>
 
       <TouchableOpacity
         style={[styles.button, styles.driverButton]}
@@ -21,6 +23,13 @@ export default function HomeScreen() {
         onPress={() => router.push('/rider')}
       >
         <Text style={styles.buttonText}>I am a Rider</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.logoutButton]}
+        onPress={signOut}
+      >
+        <Text style={styles.buttonText}>Logout</Text>
       </TouchableOpacity>
     </View>
   );
@@ -61,5 +70,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  logoutButton: {
+    backgroundColor: '#ff3b30',
+    marginTop: 20,
   }
 });

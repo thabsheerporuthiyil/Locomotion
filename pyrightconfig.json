@@ -1,0 +1,9 @@
+{
+  // Pylance uses Pyright under the hood; this helps import resolution in editors
+  // even when the workspace contains multiple projects.
+  "venvPath": "Locomotion",
+  "venv": "env",
+  "extraPaths": ["Locomotion/Locomotion"],
+  "typeCheckingMode": "basic"
+}
+
