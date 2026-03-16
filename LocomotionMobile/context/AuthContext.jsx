@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { useRouter, useSegments } from 'expo-router';
 
 // Make sure this matches your backend IP
-const API_URL = 'http://192.168.220.62:8000/api/accounts';
+const API_URL = 'http://192.168.220.46:8000/api/accounts';
 
 const AuthContext = createContext({});
 
@@ -22,11 +22,12 @@ export function AuthProvider({ children }) {
         async function loadToken() {
             try {
                 const token = await SecureStore.getItemAsync('userToken');
+                const refreshTokenVal = await SecureStore.getItemAsync('refreshToken');
                 const role = await SecureStore.getItemAsync('userRole');
                 const name = await SecureStore.getItemAsync('userName');
 
                 if (token) {
-                    setUser({ token, role, name });
+                    setUser({ token, refreshToken: refreshTokenVal, role, name });
                 }
             } catch (e) {
                 console.error('Failed to load storage', e);
@@ -37,6 +38,36 @@ export function AuthProvider({ children }) {
 
         loadToken();
     }, []);
+
+    const refreshToken = async () => {
+        try {
+            const currentRefreshToken = await SecureStore.getItemAsync('refreshToken');
+            if (!currentRefreshToken) return null;
+
+            const res = await fetch(`${API_URL}/token/refresh/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refresh: currentRefreshToken })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                await SecureStore.setItemAsync('userToken', data.access);
+                if (data.refresh) await SecureStore.setItemAsync('refreshToken', data.refresh);
+                
+                const newUser = { ...user, token: data.access, refreshToken: data.refresh || currentRefreshToken };
+                setUser(newUser);
+                return data.access;
+            } else {
+                // If refresh fails, log out
+                signOut();
+                return null;
+            }
+        } catch (e) {
+            console.error("Refresh Error:", e);
+            return null;
+        }
+    };
 
     const signIn = async (email, password) => {
         try {
@@ -59,15 +90,15 @@ export function AuthProvider({ children }) {
                 throw new Error(data.error || 'Failed to login');
             }
 
-            // If OTP or 2FA is required, we'd handle it here. 
-            // For now, assuming direct access token return.
             if (data.access) {
                 await SecureStore.setItemAsync('userToken', data.access);
+                await SecureStore.setItemAsync('refreshToken', data.refresh || '');
                 await SecureStore.setItemAsync('userRole', data.role || 'customer');
                 await SecureStore.setItemAsync('userName', data.name || 'User');
 
                 setUser({
                     token: data.access,
+                    refreshToken: data.refresh,
                     role: data.role || 'customer',
                     name: data.name || 'User'
                 });
@@ -94,6 +125,7 @@ export function AuthProvider({ children }) {
             console.error("Logout Error:", e.message);
         } finally {
             await SecureStore.deleteItemAsync('userToken');
+            await SecureStore.deleteItemAsync('refreshToken');
             await SecureStore.deleteItemAsync('userRole');
             await SecureStore.deleteItemAsync('userName');
             setUser(null);
@@ -101,7 +133,7 @@ export function AuthProvider({ children }) {
     };
 
     return (
-        <AuthContext.Provider value={{ signIn, signOut, user, loading }}>
+        <AuthContext.Provider value={{ signIn, signOut, refreshToken, user, loading }}>
             {!loading && children}
         </AuthContext.Provider>
     );

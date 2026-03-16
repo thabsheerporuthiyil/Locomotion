@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import { useAuthStore } from "../store/authStore";
-import { ArrowRight, ShieldCheck, Zap, MapPin, Star, Clock, CarFront, Users, Smartphone, CreditCard, Wallet, CheckCircle } from "lucide-react";
+import { ArrowRight, ShieldCheck, Zap, Star, Clock, CarFront, Users, Smartphone, CreditCard, Wallet, CheckCircle } from "lucide-react";
 export default function Home() {
   const [activeTab, setActiveTab] = useState('riders');
   const { access, role, isDriver } = useAuthStore();
@@ -25,7 +25,6 @@ export default function Home() {
 
       {/* 1. HERO SECTION */}
       <section className="relative min-h-[95vh] w-full flex items-center justify-center overflow-hidden bg-slate-950">
-
         {/* Animated Background Elements */}
         <div className="absolute inset-0 w-full h-full">
           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/30 rounded-full blur-[120px] mix-blend-screen animate-blob" />

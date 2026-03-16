@@ -1,36 +1,31 @@
-import base64
 import random
-from datetime import timedelta
-from io import BytesIO
-
 import pyotp
 import qrcode
-from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.utils import timezone
-from drf_yasg import openapi
-from drf_yasg.utils import swagger_auto_schema
-from google.auth.transport import requests
-from google.oauth2 import id_token
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
+import base64
+from io import BytesIO
 from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
-
-from drivers.serializers import DriverApplicationSerializer
-
 from .models import EmailOTP
-from .serializers import (ForgotPasswordSendOTPSerializer, RegisterSerializer,
-                          ResetPasswordSerializer, SendOTPSerializer,
-                          VerifyOTPRequestSerializer)
+from rest_framework.response import Response
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .serializers import RegisterSerializer,SendOTPSerializer,ForgotPasswordSendOTPSerializer,ResetPasswordSerializer,VerifyOTPRequestSerializer
+from rest_framework import status
+from django.utils import timezone
+from datetime import timedelta
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
+from django.contrib.auth import get_user_model
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .tasks import send_otp_email
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from django.conf import settings
+from drivers.models import DriverApplication
+from drivers.serializers import DriverApplicationSerializer
 
 User = get_user_model()
 
 OTP_EXPIRY_MINUTES = 2
-
 
 def generate_otp():
     return str(random.randint(100000, 999999))
@@ -40,7 +35,7 @@ class RegisterView(APIView):
     @swagger_auto_schema(
         request_body=RegisterSerializer,
         responses={201: RegisterSerializer},
-        operation_description="Register a new user and send verification OTP",
+        operation_description="Register a new user and send verification OTP"
     )
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -79,13 +74,7 @@ class SendOTPView(APIView):
         operation_summary="Send or resend OTP to email",
         request_body=SendOTPSerializer,
         responses={
-            200: openapi.Response(
-                "OTP sent",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={"message": openapi.Schema(type=openapi.TYPE_STRING)},
-                ),
-            ),
+            200: openapi.Response("OTP sent", schema=openapi.Schema(type=openapi.TYPE_OBJECT, properties={'message': openapi.Schema(type=openapi.TYPE_STRING)})),
             400: "Email already verified",
             404: "User not found",
         },
@@ -117,36 +106,34 @@ class SendOTPView(APIView):
         return Response({"message": "OTP sent"})
 
 
+
 class VerifyOTPView(APIView):
     @swagger_auto_schema(
         operation_summary="Verify Email/Admin OTP",
         request_body=VerifyOTPRequestSerializer,
         responses={
-            200: openapi.Response(
-                "Success",
-                schema=openapi.Schema(
-                    type=openapi.TYPE_OBJECT,
-                    properties={
-                        "message": openapi.Schema(type=openapi.TYPE_STRING),
-                        "name": openapi.Schema(type=openapi.TYPE_STRING),
-                        "access": openapi.Schema(type=openapi.TYPE_STRING),
-                    },
-                ),
-            ),
-            400: "Invalid OTP",
-        },
+            200: openapi.Response("Success", schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'message': openapi.Schema(type=openapi.TYPE_STRING),
+                    'name': openapi.Schema(type=openapi.TYPE_STRING),
+                    'access': openapi.Schema(type=openapi.TYPE_STRING),
+                }
+            )),
+            400: "Invalid OTP"
+        }
     )
     def post(self, request):
         email = request.data.get("email")
         otp = request.data.get("otp")
 
         user = User.objects.filter(email=email).first()
-        record = EmailOTP.objects.filter(email=email, otp=otp, is_used=False).last()
+        record = EmailOTP.objects.filter(
+            email=email, otp=otp, is_used=False
+        ).last()
 
         if not record:
-            return Response(
-                {"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Invalid OTP"}, status=400)
 
         record.is_used = True
         record.save()
@@ -157,13 +144,11 @@ class VerifyOTPView(APIView):
             user.save()
 
             refresh = RefreshToken.for_user(user)
-            response = Response(
-                {
-                    "access": str(refresh.access_token),
-                    "role": "admin",
-                    "name": user.name,
-                }
-            )
+            response = Response({
+                "access": str(refresh.access_token),
+                "role": "admin",
+                "name": user.name,
+            })
 
             response.set_cookie(
                 key="refresh",
@@ -177,7 +162,7 @@ class VerifyOTPView(APIView):
         # USER EMAIL VERIFICATION
         user.is_verified = True
         user.save()
-        return Response({"message": "Email verified", "name": user.name})
+        return Response({"message": "Email verified","name": user.name})
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
@@ -204,22 +189,29 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
                 send_otp_email.delay(email, otp)
 
-                return Response({"otp_required": True, "type": "email_otp"}, status=200)
+                return Response(
+                    {"otp_required": True, "type": "email_otp"},
+                    status=200
+                )
 
         if user.is_2fa_enabled:
             return Response(
-                {"otp_required": True, "type": "totp", "user_id": user.id}, status=200
+                {
+                    "otp_required": True,
+                    "type": "totp",
+                    "user_id": user.id
+                },
+                status=200
             )
 
         refresh = RefreshToken.for_user(user)
 
-        response = Response(
-            {
-                "access": str(refresh.access_token),
-                "role": "admin" if user.is_staff else "customer",
-                "name": user.name,
-            }
-        )
+        response = Response({
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "role": "admin" if user.is_staff else "customer",
+            "name": user.name,
+        })
 
         response.set_cookie(
             key="refresh",
@@ -233,25 +225,27 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 
 
 class CookieTokenRefreshView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     def post(self, request):
-        refresh = request.COOKIES.get("refresh")
+        refresh = request.COOKIES.get("refresh") or request.data.get("refresh")
         if not refresh:
             return Response({"error": "No refresh token"}, status=401)
 
         try:
             token = RefreshToken(refresh)
-            user_id = token["user_id"]
+            user_id = token['user_id']
             user = User.objects.get(id=user_id)
-
+            
             role = "admin" if (user.is_staff or user.is_superuser) else "customer"
-
-            return Response(
-                {
-                    "access": str(token.access_token),
-                    "role": role,
-                    "name": user.name,
-                }
-            )
+            
+            return Response({
+                "access": str(token.access_token),
+                "refresh": str(token),
+                "role": role,
+                "name": user.name,
+            })
         except Exception:
             return Response({"error": "Invalid token"}, status=401)
 
@@ -352,7 +346,7 @@ class ResetPasswordView(APIView):
             {"message": "Password reset successful"},
             status=status.HTTP_200_OK,
         )
-
+    
 
 class GoogleLoginView(APIView):
     def post(self, request):
@@ -364,7 +358,9 @@ class GoogleLoginView(APIView):
         try:
             # Verify token with Google
             idinfo = id_token.verify_oauth2_token(
-                token, requests.Request(), settings.GOOGLE_CLIENT_ID
+                token,
+                requests.Request(),
+                settings.GOOGLE_CLIENT_ID
             )
 
             email = idinfo.get("email")
@@ -383,7 +379,7 @@ class GoogleLoginView(APIView):
                 "name": name,
                 "role": "customer",
                 "is_verified": True,
-            },
+            }
         )
 
         # If user exists but not verified → mark verified
@@ -394,19 +390,23 @@ class GoogleLoginView(APIView):
         # Check for 2FA
         if user.is_2fa_enabled:
             return Response(
-                {"otp_required": True, "type": "totp", "user_id": user.id}, status=200
+                {
+                    "otp_required": True,
+                    "type": "totp",
+                    "user_id": user.id
+                },
+                status=200
             )
 
         # Generate JWT
         refresh = RefreshToken.for_user(user)
 
-        response = Response(
-            {
-                "access": str(refresh.access_token),
-                "role": user.role,
-                "name": user.name,
-            }
-        )
+        response = Response({
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "role": user.role,
+            "name": user.name,
+        })
 
         response.set_cookie(
             key="refresh",
@@ -417,8 +417,7 @@ class GoogleLoginView(APIView):
         )
 
         return response
-
-
+    
 class Setup2FAView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -434,14 +433,19 @@ class Setup2FAView(APIView):
 
         totp = pyotp.TOTP(secret)
 
-        otp_url = totp.provisioning_uri(name=user.email, issuer_name="YourApp")
+        otp_url = totp.provisioning_uri(
+            name=user.email,
+            issuer_name="YourApp"
+        )
 
         qr = qrcode.make(otp_url)
         buffer = BytesIO()
         qr.save(buffer, format="PNG")
         qr_base64 = base64.b64encode(buffer.getvalue()).decode()
 
-        return Response({"qr_code": f"data:image/png;base64,{qr_base64}"})
+        return Response({
+            "qr_code": f"data:image/png;base64,{qr_base64}"
+        })
 
 
 class Confirm2FAView(APIView):
@@ -479,13 +483,12 @@ class Verify2FALoginView(APIView):
 
         refresh = RefreshToken.for_user(user)
 
-        response = Response(
-            {
-                "access": str(refresh.access_token),
-                "role": user.role,
-                "name": user.name,
-            }
-        )
+        response = Response({
+            "access": str(refresh.access_token),
+            "refresh": str(refresh),
+            "role": user.role,
+            "name": user.name,
+        })
 
         response.set_cookie(
             key="refresh",
@@ -509,7 +512,8 @@ class Disable2FAView(APIView):
         user.save()
 
         return Response(
-            {"message": "2FA disabled successfully"}, status=status.HTTP_200_OK
+            {"message": "2FA disabled successfully"},
+            status=status.HTTP_200_OK
         )
 
 
@@ -524,21 +528,20 @@ class MeView(APIView):
         if hasattr(user, "driver_application"):
             application = user.driver_application
             driver_application = DriverApplicationSerializer(
-                application, context={"request": request}
+                application,
+                context={"request": request}
             ).data
 
-        return Response(
-            {
-                "email": user.email,
-                "name": user.name,
-                "phone_number": user.phone_number,
-                "role": user.role,
-                "is_driver": hasattr(user, "driver_profile"),
-                "has_applied": hasattr(user, "driver_application"),
-                "is_2fa_enabled": user.is_2fa_enabled,
-                "driver_application": driver_application,
-            }
-        )
+        return Response({
+            "email": user.email,
+            "name": user.name,
+            "phone_number": user.phone_number,
+            "role": user.role,
+            "is_driver": hasattr(user, "driver_profile"),
+            "has_applied": hasattr(user, "driver_application"),
+            "is_2fa_enabled": user.is_2fa_enabled,
+            "driver_application": driver_application,
+        })
 
 
 class UpdateFCMTokenView(APIView):
@@ -549,27 +552,20 @@ class UpdateFCMTokenView(APIView):
         request_body=openapi.Schema(
             type=openapi.TYPE_OBJECT,
             properties={
-                "fcm_token": openapi.Schema(
-                    type=openapi.TYPE_STRING,
-                    description="Firebase Cloud Messaging Device Token",
-                ),
+                'fcm_token': openapi.Schema(type=openapi.TYPE_STRING, description="Firebase Cloud Messaging Device Token"),
             },
-            required=["fcm_token"],
+            required=['fcm_token']
         ),
-        responses={200: "Token updated successfully", 400: "Token is required"},
+        responses={200: "Token updated successfully", 400: "Token is required"}
     )
     def post(self, request):
-        fcm_token = request.data.get("fcm_token")
-
+        fcm_token = request.data.get('fcm_token')
+        
         if not fcm_token:
-            return Response(
-                {"error": "fcm_token is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'error': 'fcm_token is required'}, status=status.HTTP_400_BAD_REQUEST)
+            
         user = request.user
         user.fcm_device_token = fcm_token
         user.save()
-
-        return Response(
-            {"message": "FCM Token updated successfully"}, status=status.HTTP_200_OK
-        )
+        
+        return Response({'message': 'FCM Token updated successfully'}, status=status.HTTP_200_OK)

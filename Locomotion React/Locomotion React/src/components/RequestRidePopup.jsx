@@ -75,10 +75,140 @@ export default function RequestRidePopup({ open, onClose, driver }) {
     const searchPlaces = async (query) => {
         if (!query || query.length < 3) return [];
         try {
-            // Viewbox bounds focusing roughly on India/Kerala to improve relevance can be added if needed
-            const res = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
-            const data = await res.json();
-            return data.features || [];
+            // Bias results towards Kerala/India (otherwise common place names may match globally, e.g. Dubai POIs).
+            const biasLat = pickupCoords?.lat ?? mapCenter?.[0] ?? 10.8505;
+            const biasLon = pickupCoords?.lon ?? mapCenter?.[1] ?? 76.2711;
+
+            const buildUrl = (q, opts = {}) => {
+                const url = new URL("https://photon.komoot.io/api/");
+                url.searchParams.set("q", q);
+                url.searchParams.set("limit", "30");
+                url.searchParams.set("lat", String(biasLat));
+                url.searchParams.set("lon", String(biasLon));
+                url.searchParams.set("lang", "en");
+
+                // Photon supports `bbox` as "minLon,minLat,maxLon,maxLat".
+                // Restrict to Kerala first to keep results relevant for this app.
+                if (opts.bbox) url.searchParams.set("bbox", opts.bbox);
+                return url.toString();
+            };
+
+            const fetchFeatures = async (urlStr) => {
+                const res = await fetch(urlStr);
+                const data = await res.json();
+                return data.features || [];
+            };
+
+            const fetchNominatimIndia = async () => {
+                const build = (bounded) => {
+                    const url = new URL("https://nominatim.openstreetmap.org/search");
+                    url.searchParams.set("format", "jsonv2");
+                    url.searchParams.set("addressdetails", "1");
+                    url.searchParams.set("limit", "10");
+                    url.searchParams.set("countrycodes", "in");
+                    url.searchParams.set("q", query);
+                    if (bounded) {
+                        // viewbox=left,top,right,bottom
+                        url.searchParams.set("viewbox", "74.8,12.9,77.6,8.0");
+                        url.searchParams.set("bounded", "1");
+                    }
+                    return url.toString();
+                };
+
+                const toFeature = (r) => {
+                    const addr = r.address || {};
+                    const name =
+                        r.name ||
+                        addr.city ||
+                        addr.town ||
+                        addr.village ||
+                        addr.county ||
+                        (typeof r.display_name === "string" ? r.display_name.split(",")[0] : "Unknown");
+
+                    return {
+                        type: "Feature",
+                        geometry: {
+                            type: "Point",
+                            coordinates: [Number(r.lon), Number(r.lat)],
+                        },
+                        properties: {
+                            name,
+                            street: addr.road || "",
+                            locality: addr.suburb || addr.neighbourhood || "",
+                            city: addr.city || addr.town || addr.village || "",
+                            state: addr.state || "",
+                            countrycode: (addr.country_code || "in").toLowerCase(),
+                            display_name: r.display_name || "",
+                        },
+                    };
+                };
+
+                try {
+                    let res = await fetch(build(true));
+                    let data = await res.json();
+                    let results = Array.isArray(data) ? data : [];
+                    if (!results.length) {
+                        res = await fetch(build(false));
+                        data = await res.json();
+                        results = Array.isArray(data) ? data : [];
+                    }
+                    return results.map(toFeature);
+                } catch {
+                    return [];
+                }
+            };
+
+            // Kerala bounding box (approx): (minLon, minLat, maxLon, maxLat)
+            const kerala = { minLon: 74.8, minLat: 8.0, maxLon: 77.6, maxLat: 12.9 };
+            const keralaBbox = `${kerala.minLon},${kerala.minLat},${kerala.maxLon},${kerala.maxLat}`;
+            const inBbox = { minLon: 68.0, minLat: 6.0, maxLon: 98.0, maxLat: 37.5 }; // broad India bbox
+
+            const inKeralaBbox = (f) => {
+                const coords = f?.geometry?.coordinates;
+                if (!Array.isArray(coords) || coords.length < 2) return false;
+                const [lon, lat] = coords;
+                return (
+                    lon >= kerala.minLon &&
+                    lon <= kerala.maxLon &&
+                    lat >= kerala.minLat &&
+                    lat <= kerala.maxLat
+                );
+            };
+
+            const inIndiaBbox = (f) => {
+                const coords = f?.geometry?.coordinates;
+                if (!Array.isArray(coords) || coords.length < 2) return false;
+                const [lon, lat] = coords;
+                return (
+                    lon >= inBbox.minLon &&
+                    lon <= inBbox.maxLon &&
+                    lat >= inBbox.minLat &&
+                    lat <= inBbox.maxLat
+                );
+            };
+
+            const isIndia = (f) => (f?.properties?.countrycode || "").toLowerCase() === "in";
+            const isKerala = (f) => (f?.properties?.state || "").toLowerCase() === "kerala";
+
+            // 1) Try Kerala-bounded search first.
+            let features = await fetchFeatures(buildUrl(query, { bbox: keralaBbox }));
+
+            // Even if Photon ignores bbox, enforce it client-side.
+            let filtered = features.filter((f) => inKeralaBbox(f) || isKerala(f));
+            if (filtered.length > 0) return filtered;
+
+            // 2) Try broader India-bounded search with a hint appended.
+            const hinted = query.toLowerCase().includes("india") ? query : `${query} Kerala India`;
+            features = await fetchFeatures(buildUrl(hinted, {}));
+            filtered = features.filter((f) => isIndia(f) || isKerala(f) || inIndiaBbox(f));
+            if (filtered.length > 0) return filtered;
+
+            // 3) As a last resort, return nothing rather than misleading global results.
+            const nominatim = await fetchNominatimIndia();
+            if (nominatim.length > 0) return nominatim;
+
+            // If we still have nothing India/Kerala related, return whatever Photon gave us (better than empty UI).
+            return features.slice(0, 10);
         } catch (err) {
             console.error("Search API error:", err);
             return [];

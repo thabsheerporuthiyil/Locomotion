@@ -26,6 +26,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="explore"
         options={{
+          href: null, // Hides the tab from the bar
           title: 'Explore',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
         }}

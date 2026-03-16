@@ -10,8 +10,10 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  const isAuthRequest = config.url.includes("accounts/token/refresh") || config.url.includes("accounts/login");
   const access = useAuthStore.getState().access;
-  if (access) {
+  
+  if (access && !isAuthRequest) {
     config.headers.Authorization = `Bearer ${access}`;
   }
   return config;

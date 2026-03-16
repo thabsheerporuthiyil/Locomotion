@@ -2,15 +2,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
-import google.generativeai as genai
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
 from sentence_transformers import SentenceTransformer
 
-from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import HumanMessage
+import re
 
 app = FastAPI(title="Locomotion AI Matchmaker")
 
@@ -33,14 +30,13 @@ encoder = SentenceTransformer('all-MiniLM-L6-v2')
 qdrant = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
 if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
-    
-    # Initialize Langchain Chat Model for the Agent
+    # Optional LLM used only for summarization (retrieval always happens first).
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         google_api_key=GEMINI_API_KEY,
         temperature=0.0
     )
+    print(f"Gemini initialized successfully with model: gemini-2.0-flash")
 
 # Ensure Qdrant collection exists on startup
 @app.on_event("startup")
@@ -90,7 +86,8 @@ def sync_driver(payload: DriverSyncPayload):
                         "driver_id": payload.driver_id,
                         "name": payload.name,
                         "bio": payload.bio,
-                        "vehicle_info": payload.vehicle_info
+                        "vehicle_info": payload.vehicle_info,
+                        "reviews": payload.reviews_text
                     }
                 )
             ]
@@ -99,93 +96,187 @@ def sync_driver(payload: DriverSyncPayload):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# --- AGENT TOOLS ---
-@tool
-def search_vector_db(query: str, limit: int = 3) -> str:
-    """Useful for finding drivers based on a user's semantic request. 
-    Pass the user's description of preferred drivers as the query.
-    Returns a list of driver profiles including their IDs, names, bios, and vehicle details.
-    """
+# --- RETRIEVAL-FIRST MATCHING (LLM OPTIONAL) ---
+_PET_QUERY_RE = re.compile(r"\b(pet|pets|pet[- ]?friendly|dog|dogs|cat|cats|animal|animals)\b", re.IGNORECASE)
+_LONG_TRIP_QUERY_RE = re.compile(r"\b(long[- ]?trip|long[- ]?drive|road[- ]?trip|outstation|intercity|long distance)\b", re.IGNORECASE)
+_LONG_TRIP_PAYLOAD_RE = re.compile(r"\b(long[- ]?trip|long[- ]?drive|road[- ]?trip|outstation|intercity|long distance)\b", re.IGNORECASE)
+
+def _query_wants_pets(query: str) -> bool:
+    return bool(_PET_QUERY_RE.search(query or ""))
+
+def _query_wants_long_trip(query: str) -> bool:
+    return bool(_LONG_TRIP_QUERY_RE.search(query or ""))
+
+def _payload_text(payload: dict) -> str:
+    if not payload:
+        return ""
+    parts = [
+        payload.get("name", ""),
+        payload.get("bio", ""),
+        payload.get("vehicle_info", ""),
+        payload.get("reviews", ""),
+    ]
+    return " ".join([p for p in parts if p]).strip()
+
+def _retrieve_and_rank(query: str, limit: int) -> list[tuple[int, float, dict]]:
     query_vector = encoder.encode(query).tolist()
     search_results = qdrant.search(
         collection_name=COLLECTION_NAME,
         query_vector=query_vector,
-        limit=limit
+        limit=limit,
     )
-    
-    if not search_results:
-        return "No matching drivers found in the database."
-        
-    results_str = ""
-    for match in search_results:
-        p = match.payload
-        score = match.score
-        results_str += f"[ID: {p['driver_id']}] {p['name']} (Score: {score:.2f}): {p['bio']}. Vehicle: {p['vehicle_info']}\n"
-        
-    return results_str
 
-# --- COMPILE AGENT ---
-def get_agent():
-    tools = [search_vector_db]
-    
-    system_prompt = """You are an expert ride-matching concierge. 
-    A rider is looking for a specific type of driver. 
-    1. Use the `search_vector_db` tool to find drivers that match their request.
-    2. Analyze the results carefully. If NONE of the returned drivers seem relevant to the specific request (for example, no one mentions 'pets' when asked for pets), do NOT force a recommendation. 
-    3. Output your final response in EXACTLY this format, do not include any other text:
-    
-    IDS: [comma separated list of driver IDs you recommend. Leave completely blank if none match.]
-    SUMMARY: [A short, 1-3 sentence engaging paragraph explaining why you recommend these specific drivers. If none matched, say so politely.]
+    ranked: list[tuple[int, float, dict]] = []
+    for match in search_results or []:
+        payload = match.payload or {}
+        driver_id = payload.get("driver_id")
+        if driver_id is None:
+            continue
+        ranked.append((int(driver_id), float(match.score), payload))
+    return ranked
+
+def _match_drivers_retrieval_first(query: str, retrieve_limit: int = 20, recommend_limit: int = 3) -> tuple[list[int], str, str, list[dict]]:
     """
-    
-    # Create the ReAct agent graph
-    agent_executor = create_react_agent(llm, tools, prompt=system_prompt)
-    return agent_executor
+    Returns (driver_ids, non_llm_summary, debug_text, recommended_payloads).
+    Always retrieves from Qdrant first; applies lightweight keyword constraints when present.
+    """
+    wants_pets = _query_wants_pets(query)
+    wants_long_trip = _query_wants_long_trip(query)
+    retrieve_limit = max(retrieve_limit, 50) if (wants_pets or wants_long_trip) else retrieve_limit
+
+    candidates = _retrieve_and_rank(query, limit=retrieve_limit)
+    debug_lines: list[str] = [
+        f"[ID: {driver_id}] score={score:.3f} name={(payload or {}).get('name', '')}"
+        for (driver_id, score, payload) in candidates
+    ]
+
+    if not candidates:
+        return ([], "No matching drivers found.", "\n".join(debug_lines) or "No candidates", [])
+
+    filtered = candidates
+    long_trip_explicit = False
+
+    if wants_pets:
+        filtered = [
+            (driver_id, score, payload)
+            for (driver_id, score, payload) in candidates
+            if _PET_QUERY_RE.search(_payload_text(payload))
+        ]
+
+        # If semantic search misses, do a lightweight full scan for pet keywords in payload text.
+        if not filtered:
+            try:
+                scroll_limit = 256
+                offset = None
+                scanned = 0
+                pet_hits: list[tuple[int, float, dict]] = []
+                while scanned < 5000 and len(pet_hits) < recommend_limit:
+                    points, offset = qdrant.scroll(
+                        collection_name=COLLECTION_NAME,
+                        limit=scroll_limit,
+                        offset=offset,
+                        with_payload=True,
+                        with_vectors=False,
+                    )
+                    if not points:
+                        break
+                    scanned += len(points)
+                    for point in points:
+                        payload = point.payload or {}
+                        driver_id = payload.get("driver_id")
+                        if driver_id is None:
+                            continue
+                        if _PET_QUERY_RE.search(_payload_text(payload)):
+                            pet_hits.append((int(driver_id), 0.0, payload))
+                            if len(pet_hits) >= recommend_limit:
+                                break
+                    if offset is None:
+                        break
+
+                if pet_hits:
+                    filtered = pet_hits
+                    debug_lines.append(f"Scroll used; scanned={scanned} pet_hits={len(pet_hits)}")
+            except Exception as scroll_err:
+                debug_lines.append(f"Scroll failed: {scroll_err}")
+
+    if wants_long_trip:
+        long_trip_filtered = [
+            (driver_id, score, payload)
+            for (driver_id, score, payload) in (filtered or candidates)
+            if _LONG_TRIP_PAYLOAD_RE.search(_payload_text(payload))
+        ]
+        if long_trip_filtered:
+            filtered = long_trip_filtered
+            long_trip_explicit = True
+
+    recommended = filtered[:recommend_limit]
+    driver_ids = [driver_id for (driver_id, _score, _payload) in recommended]
+    recommended_payloads = [payload for (_driver_id, _score, payload) in recommended]
+
+    if wants_pets and not driver_ids:
+        return ([], "No drivers in your area mention being pet-friendly.", "\n".join(debug_lines), [])
+
+    if driver_ids:
+        if wants_pets:
+            summary = "Here are drivers whose profiles or reviews mention being pet-friendly."
+        elif wants_long_trip and long_trip_explicit:
+            summary = "Here are drivers whose profiles or reviews explicitly mention long trips."
+        elif wants_long_trip and not long_trip_explicit:
+            summary = "No drivers explicitly mention long trips; showing closest matches instead."
+        else:
+            summary = "Here are the closest matches based on driver profiles and reviews."
+    else:
+        summary = "No matches found."
+
+    return (driver_ids, summary, "\n".join(debug_lines), recommended_payloads)
+
+def _summarize_with_llm(user_query: str, recommended_payloads: list[dict]) -> str:
+    if not recommended_payloads:
+        return ""
+
+    snippets: list[str] = []
+    for p in recommended_payloads[:5]:
+        snippets.append(
+            f"- ID {p.get('driver_id')}: {p.get('name', 'Unknown')}. "
+            f"Bio: {p.get('bio', '')}. Vehicle: {p.get('vehicle_info', '')}. Reviews: {p.get('reviews', '')}"
+        )
+
+    prompt = (
+        "You are a ride-matching assistant. Write a short 1-3 sentence summary explaining why the listed drivers match the rider request. "
+        "Only use facts present in the driver snippets. Do not invent details.\n\n"
+        f"Rider request: {user_query}\n\n"
+        "Driver snippets:\n"
+        + "\n".join(snippets)
+    )
+
+    # ChatGoogleGenerativeAI returns an AIMessage with `.content`.
+    result = llm.invoke(prompt)  # type: ignore[name-defined]
+    return (getattr(result, "content", "") or "").strip()
 
 
 @app.post("/api/ai/match-drivers")
 async def match_drivers(payload: MatchRequestPayload):
     try:
-        if not GEMINI_API_KEY:
-            raise HTTPException(status_code=500, detail="Gemini API Key is not configured.")
+        driver_ids, non_llm_summary, debug_text, recommended_payloads = _match_drivers_retrieval_first(payload.query)
+        ai_summary = non_llm_summary
+        llm_used = False
 
-        agent = get_agent()
-        
-        # Invoke the agent graph
-        inputs = {"messages": [HumanMessage(content=f"Rider Request: {payload.query}")]}
-        response = agent.invoke(inputs)
-        
-        final_message = response["messages"][-1].content
-        
-        # Parse output format robustly
-        driver_ids = []
-        ai_summary = ""
-        
-        parsing_summary = False
-        for line in final_message.split("\n"):
-            line = line.strip()
-            if not line:
-                continue
-                
-            if line.startswith("IDS:"):
-                parsing_summary = False
-                ids_str = line.replace("IDS:", "").strip().strip("[]")
-                if ids_str:
-                    try:
-                        driver_ids = [int(id_part.strip()) for id_part in ids_str.split(",") if id_part.strip()]
-                    except ValueError:
-                        pass # Handle cases where agent hallucinated non-integers
-            elif line.startswith("SUMMARY:"):
-                parsing_summary = True
-                ai_summary += line.replace("SUMMARY:", "").strip() + " "
-            elif parsing_summary:
-                ai_summary += line + " "
-                
-        ai_summary = ai_summary.strip() or "No matches found."
+        if GEMINI_API_KEY and driver_ids:
+            try:
+                llm_summary = _summarize_with_llm(payload.query, recommended_payloads)
+                if llm_summary:
+                    ai_summary = llm_summary
+                    llm_used = True
+            except Exception as llm_err:
+                # If the LLM is rate-limited/unavailable, keep the deterministic summary.
+                debug_text = f"{debug_text}\nLLM summary failed: {llm_err}"
 
         return {
             "driver_ids": driver_ids,
-            "ai_summary": ai_summary
+            "ai_summary": ai_summary,
+            "debug_raw_results": debug_text,
+            "fallback_used": not llm_used,
+            "llm_used": llm_used,
         }
         
     except Exception as e:

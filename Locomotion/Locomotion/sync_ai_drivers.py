@@ -1,8 +1,7 @@
 import os
 import django
 import requests
-import json
-import uuid
+import time
 
 # Setup Django Environment
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Locomotion.settings')
@@ -16,6 +15,21 @@ FASTAPI_URL = "http://localhost:8001/api/ai/sync-driver"
 # let's write it to be run from the web container
 FASTAPI_INTERNAL_URL = "http://fastapi-ai:8000/api/ai/sync-driver"
 
+def _running_in_docker() -> bool:
+    # Works for typical Linux containers (including docker compose services).
+    return os.path.exists("/.dockerenv")
+
+def _post_with_retries(url: str, payload: dict, timeout: int = 30, attempts: int = 3):
+    last_err = None
+    for attempt in range(1, attempts + 1):
+        try:
+            return requests.post(url, json=payload, timeout=timeout)
+        except requests.exceptions.ConnectionError as e:
+            last_err = e
+            if attempt < attempts:
+                time.sleep(attempt)  # simple backoff: 1s, 2s, ...
+    raise last_err
+
 def sync_drivers():
     drivers = DriverProfile.objects.all()
     print(f"Found {drivers.count()} drivers. Syncing to Qdrant...")
@@ -26,15 +40,18 @@ def sync_drivers():
     for driver in drivers:
         try:
             # Gather Review Text
-            # We map from driver's RideRequests where feedback exists
-            completed_rides = RideRequest.objects.filter(driver=driver, status='completed').exclude(feedback__isnull=True).exclude(feedback__exact='')
+            # Don't require `status='completed'` here; test/admin data may have feedback on other statuses
+            # and we still want those keywords (e.g. "pets") searchable in the AI matcher.
+            completed_rides = RideRequest.objects.filter(driver=driver).exclude(
+                feedback__isnull=True
+            ).exclude(feedback='')
             
             reviews = []
             for ride in completed_rides:
-                rating = ride.rating if ride.rating else 'No rating'
-                reviews.append(f"[Rating: {rating}/5] {ride.feedback}")
+                rating_str = f"{ride.rating}/5" if ride.rating else "No rating"
+                reviews.append(f"[Rating: {rating_str}] {ride.feedback}")
             
-            reviews_text = " ".join(reviews) if reviews else "No reviews yet."
+            reviews_text = " ".join(reviews) if reviews else "No reviews recorded for this driver yet."
             
             # Format Vehicle Info (Assuming Vehicle model relates to driver, check drivers/models.py later. For now, use basic text)
             vehicle_info = "Vehicle details not specified"
@@ -45,7 +62,6 @@ def sync_drivers():
                 vehicle_info = f"{vehicle.vehicle_category.name} - {vehicle.vehicle_model.name} (Reg: {vehicle.registration_number})"
             
             # Main.py and Qdrant accept integer IDs. The frontend relies on integer IDs for filtering.
-            # Using driver.pk directly as the driver_id
             driver_id = driver.pk
 
             payload = {
@@ -56,18 +72,22 @@ def sync_drivers():
                 "reviews_text": reviews_text
             }
             
-            # We try internal first (if running in docker compose), then fallback to localhost (if running from host)
-            try:
-                response = requests.post(FASTAPI_INTERNAL_URL, json=payload, timeout=10)
-            except requests.exceptions.ConnectionError:
-                response = requests.post(FASTAPI_URL, json=payload, timeout=10)
+            # If running inside docker compose (e.g. `docker compose exec web ...`), ALWAYS use the service DNS name.
+            # `localhost:8001` only works from the host, not from inside the container.
+            if _running_in_docker():
+                response = _post_with_retries(FASTAPI_INTERNAL_URL, payload, timeout=30, attempts=3)
+            else:
+                try:
+                    response = _post_with_retries(FASTAPI_URL, payload, timeout=30, attempts=3)
+                except requests.exceptions.ConnectionError:
+                    response = _post_with_retries(FASTAPI_INTERNAL_URL, payload, timeout=30, attempts=1)
                 
             if response.status_code == 200:
                 success_count += 1
                 print(f"Synced {payload['name']}")
             else:
                 error_count += 1
-                print(f"Failed to sync {payload['name']}: {response.text}")
+                print(f"Failed to sync {payload['name']} via sync-driver endpoint: {response.status_code} {response.text}")
                 
         except Exception as e:
             error_count += 1

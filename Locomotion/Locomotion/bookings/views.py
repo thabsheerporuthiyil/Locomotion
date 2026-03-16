@@ -469,6 +469,39 @@ class RideRequestActionView(APIView):
 
         if action == "accept":
             ride_request.status = "accepted"
+
+            # --- Email Notification to Rider ---
+            rider_email = getattr(ride_request.rider, 'email', None)
+            print(f"[DEBUG] Ride {ride_request.id} Accepted - Attempting to email Rider at: {rider_email}") # type:ignore
+            if rider_email:
+                try:
+                    subject = "Ride Accepted - Locomotion"
+                    message = f"Hello,\n\nYour ride from {ride_request.source_location} to {ride_request.destination_location} has been accepted by {ride_request.driver.user.name}.\n\nThe driver is on their way.\n\nThank you,\nThe Locomotion Team"
+                    html_message = f"""
+                    <div style="font-family: sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; max-width: 600px;">
+                        <h2 style="color: #3b82f6;">Ride Accepted! 🚗</h2>
+                        <p style="font-size: 16px; color: #333;">Great news! Your ride request has been accepted.</p>
+                        <div style="background-color: #f8fafc; padding: 15px; border-radius: 6px; margin: 15px 0;"> 
+                            <p style="margin: 5px 0;"><strong>Driver:</strong> {ride_request.driver.user.name}</p>
+                            <p style="margin: 5px 0;"><strong>Pickup:</strong> {ride_request.source_location}</p>
+                            <p style="margin: 5px 0;"><strong>Dropoff:</strong> {ride_request.destination_location}</p>
+                            <p style="margin: 5px 0;"><strong>Vehicle OTP:</strong> <span style="font-size: 18px; font-weight: bold; letter-spacing: 2px;">{ride_request.ride_otp}</span></p>
+                        </div> 
+                        <p style="color: #555;">To see their live location, please check the <strong>Locomotion Web Portal</strong> in the My Rides section.</p>
+                    </div>
+                    """
+                    send_mail(
+                        subject=subject,
+                        message=message,
+                        from_email=getattr(
+                            settings, "EMAIL_HOST_USER", "locomotion@example.com"
+                        ),
+                        recipient_list=[rider_email],
+                        fail_silently=True,
+                        html_message=html_message
+                    )
+                except Exception as e:
+                    print(f"Failed to send acceptance email to {rider_email}: {e}")
         elif action == "reject":
             ride_request.status = "rejected"
         elif action == "arrive":
@@ -497,7 +530,9 @@ class RideRequestActionView(APIView):
                             send_mail(
                                 subject="Action Required: Locomotion Account Blocked Due to Low Balance",
                                 message=f"Hello,\n\nYour driver wallet balance has dropped to {driver_profile.wallet_balance} INR, which is below the minimum required balance of -100.00 INR.\n\nAs a result, your account has been temporarily blocked from receiving new ride requests. To resume driving, please login to the Locomotion Web Portal and recharge your wallet.\n\nThank you,\nThe Locomotion Team",
-                                from_email=settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else None,
+                                from_email=getattr(
+                            settings, "EMAIL_HOST_USER", "locomotion@example.com"
+                        ),
                                 recipient_list=[driver_email],
                                 fail_silently=True,
                             )
@@ -539,8 +574,8 @@ class RideRequestActionView(APIView):
                             "cancel": "Ride Cancelled ❌",
                         }
                         bodies = {
-                            "accept": f"{ride_request.driver_name} is on the way.", # type: ignore
-                            "arrive": f"{ride_request.driver_name} has arrived at the pickup location.", # type: ignore
+                            "accept": f"{ride_request.driver.user.name} is on the way.",
+                            "arrive": f"{ride_request.driver.user.name} has arrived at the pickup location.",
                             "start_trip": "Your trip has started. Have a safe journey!",
                             "complete": f"You have reached your destination. Fare: ₹{ride_request.estimated_fare}",
                             "cancel": "Your ride has been cancelled.",

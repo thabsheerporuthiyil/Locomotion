@@ -28,7 +28,7 @@ export default function LiveTrackingMap({ rideId, onClose }) {
     const wsRef = useRef(null);
 
     useEffect(() => {
-        const WS_URL = `ws://192.168.220.62:8000/ws/location/${rideId}/`;
+        const WS_URL = `ws://192.168.220.46:8000/ws/location/${rideId}/`;
         wsRef.current = new WebSocket(WS_URL);
 
         wsRef.current.onopen = () => {

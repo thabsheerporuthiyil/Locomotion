@@ -84,6 +84,9 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../ai_service:/app
     networks:
       - app_network
 
