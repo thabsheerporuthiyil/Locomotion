@@ -16,6 +16,9 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# AI microservice (FastAPI) base URL. In docker-compose the service name is `fastapi-ai`.
+AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://fastapi-ai:8000")
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
@@ -51,6 +54,7 @@ INSTALLED_APPS = [
     "bookings",
     "payments",
     "django_celery_beat",
+    "storages",
 ]
 
 MIDDLEWARE = [
@@ -152,7 +156,7 @@ CHANNEL_LAYERS = {
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
-CELERY_TIMEZONE = "UTC"
+CELERY_TIMEZONE = "Asia/Kolkata"
 CELERY_ENABLE_UTC = True
 DJANGO_CELERY_BEAT_TZ_AWARE = False
 
@@ -166,11 +170,6 @@ CELERY_BEAT_SCHEDULE = {
     "purge-unverified-accounts-daily": {
         "task": "accounts.tasks.purge_unverified_accounts",
         "schedule": crontab(hour=3, minute=0),  # Runs daily at 3:00 AM UTC
-    },
-    "process-weekly-driver-payouts": {
-        "task": "bookings.tasks.process_weekly_driver_payouts",
-        # Runs every Sunday at 11:30 PM UTC
-        "schedule": crontab(day_of_week="sun", hour=23, minute=30),
     },
 }
 
@@ -199,7 +198,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "en-us"
 
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Kolkata"
 
 USE_I18N = True
 
@@ -212,8 +211,24 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-MEDIA_URL = "/media/"
-MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+
+# S3 Media Storage
+USE_S3 = os.environ.get("USE_S3", "False") == "True"
+
+if USE_S3:
+    AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+    AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
+    AWS_S3_REGION_NAME = os.environ.get("AWS_REGION", "eu-north-1")
+    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
+else:
+    MEDIA_URL = "/media/"
+    MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
 GOOGLE_CLIENT_ID = (
     "1068487642544-la6amm7hgtjo6bkr69lv27ajn28c0ruc.apps.googleusercontent.com"

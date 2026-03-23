@@ -33,6 +33,11 @@ services:
       - db
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - USE_S3=True
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME}
+      - AWS_REGION=${AWS_REGION}
     networks:
       - app_network
 
@@ -46,6 +51,11 @@ services:
       - db
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
+      - USE_S3=True
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME}
+      - AWS_REGION=${AWS_REGION}
     networks:
       - app_network
 
@@ -84,12 +94,14 @@ services:
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER}
       - PYTHONUNBUFFERED=1
     volumes:
       - ../ai_service:/app
+    restart: unless-stopped
     networks:
       - app_network
-
   nginx:
     build: ./nginx
     ports:

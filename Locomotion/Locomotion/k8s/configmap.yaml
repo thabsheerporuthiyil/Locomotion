@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: locomotion-config
+  namespace: default
+data:
+  # Non-sensitive configuration
+  QDRANT_HOST: "qdrant"
+  QDRANT_PORT: "6333"
+  
+  # S3 Configuration
+  USE_S3: "True"
+  AWS_STORAGE_BUCKET_NAME: "locomotion-media"
+  AWS_REGION: "eu-north-1"
+  
+  # LLM Configuration
+  LLM_PROVIDER: "gemini"
+  
+  # Django specific
+  PYTHONUNBUFFERED: "1"

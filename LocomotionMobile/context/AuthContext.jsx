@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { useRouter, useSegments } from 'expo-router';
+import { BASE_URL } from '../constants/Config';
 
 // Make sure this matches your backend IP
-const API_URL = 'http://192.168.220.46:8000/api/accounts';
+const API_URL = `${BASE_URL}/api/accounts`;
 
 const AuthContext = createContext({});
 

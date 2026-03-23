@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fastapi-ai
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fastapi-ai
+  template:
+    metadata:
+      labels:
+        app: fastapi-ai
+    spec:
+      containers:
+      - name: fastapi-ai
+        image: locomotion-ai:latest # Needs to be built locally
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - secretRef:
+            name: locomotion-secrets
+        - configMapRef:
+            name: locomotion-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi-ai
+  namespace: default
+spec:
+  selector:
+    app: fastapi-ai
+  ports:
+  - port: 8000
+    targetPort: 8000

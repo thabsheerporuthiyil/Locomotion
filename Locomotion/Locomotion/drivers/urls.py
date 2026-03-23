@@ -3,8 +3,10 @@ from django.urls import path
 from .admin_views import (AdminDriverApplicationActionView,
                           AdminDriverApplicationListView,
                           AdminVehicleActionView, AdminVehicleListView)
-from .views import (ApplyDriverView, DriverAvailabilityView, DriverDetailView,
-                    DriverListView, DriverVehicleDataView)
+from .views import (ApplyDriverView, DriverAvailabilityView,
+                    DriverCoachApplyView, DriverCoachPlanView,
+                    DriverCoachPreviewView, DriverCoachRemindersView,
+                    DriverDetailView, DriverListView, DriverVehicleDataView)
 
 urlpatterns = [
     path("apply/", ApplyDriverView.as_view()),
@@ -19,4 +21,14 @@ urlpatterns = [
     path("<int:id>/", DriverDetailView.as_view(), name="driver-detail"),
     path("vehicles/", DriverVehicleDataView.as_view()),
     path("availability/", DriverAvailabilityView.as_view(), name="driver-availability"),
+    path(
+        "coach/preview/", DriverCoachPreviewView.as_view(), name="driver-coach-preview"
+    ),
+    path("coach/plan/", DriverCoachPlanView.as_view(), name="driver-coach-plan"),
+    path("coach/apply/", DriverCoachApplyView.as_view(), name="driver-coach-apply"),
+    path(
+        "coach/reminders/",
+        DriverCoachRemindersView.as_view(),
+        name="driver-coach-reminders",
+    ),
 ]

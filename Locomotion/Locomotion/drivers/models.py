@@ -172,3 +172,32 @@ class DriverVehicle(models.Model):
 
     def __str__(self):
         return f"{self.driver.user.name} - {self.vehicle_model}"
+
+
+class DriverReminder(models.Model):
+    STATUS_CHOICES = (
+        ("pending", "Pending"),
+        ("sent", "Sent"),
+        ("failed", "Failed"),
+        ("cancelled", "Cancelled"),
+    )
+
+    driver = models.ForeignKey(
+        DriverProfile, on_delete=models.CASCADE, related_name="reminders"
+    )
+    remind_at = models.DateTimeField()
+    message = models.TextField()
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    sent_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(null=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-remind_at", "-created_at"]
+
+    def __str__(self):
+        return (
+            f"Reminder for {self.driver.user.name} at {self.remind_at} ({self.status})"
+        )

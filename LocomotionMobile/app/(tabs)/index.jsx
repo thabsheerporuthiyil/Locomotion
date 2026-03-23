@@ -5,9 +5,9 @@ import * as Location from 'expo-location';
 import { useAuth } from '@/context/AuthContext';
 import { useFocusEffect } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { BASE_URL } from '@/constants/Config';
 
 const { width, height } = Dimensions.get('window');
-const BASE_URL = 'http://192.168.220.46:8000';
 
 export default function HomeScreen() {
     const { user, signOut, refreshToken } = useAuth();
@@ -516,17 +516,38 @@ export default function HomeScreen() {
                 <View style={styles.chatSheet}>
                     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.chatInner}>
                         <View style={styles.chatHead}>
+                            <TouchableOpacity 
+                                onPress={() => { setIsChatOpen(false); setUnreadCount(0); }}
+                                style={styles.chatBackBtn}
+                            >
+                                <IconSymbol name="chevron.left" size={20} color="#fff" />
+                            </TouchableOpacity>
                             <Text style={styles.chatTitle}>Live Support</Text>
-                            <TouchableOpacity onPress={() => { setIsChatOpen(false); setUnreadCount(0); }}>
-                                <IconSymbol name="xmark.circle.fill" size={28} color="rgba(255,255,255,0.4)" />
+                            <TouchableOpacity 
+                                onPress={() => { setIsChatOpen(false); setUnreadCount(0); }}
+                                style={styles.chatCloseBtn}
+                            >
+                                <IconSymbol name="xmark" size={18} color="#fff" />
                             </TouchableOpacity>
                         </View>
-                        <ScrollView style={styles.msgScroll}>
-                            {messages.map(m => (
-                                <View key={m.id} style={[styles.msgBox, m.sender_type === 'driver' ? styles.msgMe : styles.msgThem]}>
-                                    <Text style={styles.msgTxt}>{m.message}</Text>
-                                </View>
-                            ))}
+                        <ScrollView style={styles.msgScroll} ref={msgScrollRef => { if (msgScrollRef) msgScrollRef.scrollToEnd({ animated: false }); }}>
+                            {messages.map((m, idx) => {
+                                const isMe = m.sender_role === 'driver';
+                                const senderLabel = isMe ? 'You (Driver)' : (m.sender_name || 'Rider');
+                                const time = m.created_at ? new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+                                return (
+                                    <View key={m.id ?? idx} style={[styles.msgWrapper, isMe ? styles.msgWrapperMe : styles.msgWrapperThem]}>
+                                        <Text style={[styles.msgSenderLabel, isMe ? styles.msgSenderMe : styles.msgSenderThem]}>
+                                            {senderLabel}
+                                        </Text>
+                                        <View style={[styles.msgBox, isMe ? styles.msgMe : styles.msgThem]}>
+                                            <Text style={[styles.msgTxt, isMe ? styles.msgTxtMe : styles.msgTxtThem]}>{m.message}</Text>
+                                        </View>
+                                        {time ? <Text style={[styles.msgTime, isMe ? { textAlign: 'right' } : { textAlign: 'left' }]}>{time}</Text> : null}
+                                    </View>
+                                );
+                            })}
+                            <View style={{ height: 8 }} />
                         </ScrollView>
                         <View style={styles.msgInputArea}>
                             <TextInput 
@@ -626,12 +647,23 @@ const styles = StyleSheet.create({
     chatSheet: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(15,23,42,0.9)', justifyContent: 'flex-end', zIndex: 1000 },
     chatInner: { height: '80%', backgroundColor: '#1E293B', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24 },
     chatHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+    chatBackBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
+    chatCloseBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.1)', justifyContent: 'center', alignItems: 'center' },
     chatTitle: { color: '#fff', fontSize: 20, fontWeight: '900' },
     msgScroll: { flex: 1 },
-    msgBox: { padding: 14, borderRadius: 18, marginBottom: 12, maxWidth: '85%' },
-    msgMe: { backgroundColor: '#00D2FF', alignSelf: 'flex-end' },
-    msgThem: { backgroundColor: 'rgba(255,255,255,0.05)', alignSelf: 'flex-start' },
-    msgTxt: { color: '#fff', fontSize: 15 },
+    msgWrapper: { marginBottom: 12, maxWidth: '80%' },
+    msgWrapperMe: { alignSelf: 'flex-end', alignItems: 'flex-end' },
+    msgWrapperThem: { alignSelf: 'flex-start', alignItems: 'flex-start' },
+    msgSenderLabel: { fontSize: 10, fontWeight: '700', marginBottom: 4, letterSpacing: 0.5, textTransform: 'uppercase' },
+    msgSenderMe: { color: '#00D2FF' },
+    msgSenderThem: { color: 'rgba(255,255,255,0.4)' },
+    msgBox: { padding: 14, borderRadius: 18, maxWidth: '100%' },
+    msgMe: { backgroundColor: '#00D2FF', borderBottomRightRadius: 4 },
+    msgThem: { backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderBottomLeftRadius: 4 },
+    msgTxt: { fontSize: 15 },
+    msgTxtMe: { color: '#0F172A', fontWeight: '600' },
+    msgTxtThem: { color: '#F1F5F9' },
+    msgTime: { fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 4 },
     msgInputArea: { flexDirection: 'row', alignItems: 'center', marginTop: 20 },
     msgInput: { flex: 1, height: 50, backgroundColor: 'rgba(255,255,255,0.03)', borderRadius: 16, paddingHorizontal: 20, color: '#fff' },
     msgSend: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#00D2FF', justifyContent: 'center', alignItems: 'center', marginLeft: 12 }

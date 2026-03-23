@@ -62,3 +62,4 @@ isort
 channels
 channels-redis
 daphne
+django-storages[s3]

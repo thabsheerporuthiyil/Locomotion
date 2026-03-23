@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import RideRequest,ChatMessage
+from .models import ChatMessage, RideRequest
 
 # Register your models here.
 admin.site.register(RideRequest)

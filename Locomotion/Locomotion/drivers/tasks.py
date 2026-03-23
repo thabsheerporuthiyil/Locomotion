@@ -1,7 +1,7 @@
 import requests
 import logging
 from celery import shared_task
-from django.conf import settings
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +24,11 @@ def sync_driver_to_qdrant(driver_profile_id):
 
     try:
         # Gather Review Text
-        # Don't require `status='completed'` here; admins/test data may include feedback on other statuses,
-        # and we still want those keywords (e.g. "pets") to be searchable in the AI matcher.
         completed_rides = RideRequest.objects.filter(driver=driver).exclude(
             feedback__isnull=True
         ).exclude(feedback__exact='')
+        
+        
         
         reviews = []
         for ride in completed_rides:
@@ -50,6 +50,7 @@ def sync_driver_to_qdrant(driver_profile_id):
         payload = {
             "driver_id": driver_id,
             "name": driver.user.name if driver.user else f"Driver {driver.pk}",
+            "is_available": driver.is_available,
             "bio": driver.about if hasattr(driver, 'about') and driver.about else "Experienced driver",
             "vehicle_info": vehicle_info,
             "reviews_text": reviews_text
@@ -65,3 +66,56 @@ def sync_driver_to_qdrant(driver_profile_id):
             
     except Exception as e:
         logger.error(f"Exception during AI sync for driver {driver_profile_id}: {e}")
+
+
+@shared_task
+def send_driver_reminder(reminder_id: int) -> None:
+    from drivers.models import DriverReminder
+
+    try:
+        reminder = DriverReminder.objects.select_related("driver", "driver__user").get(
+            pk=reminder_id
+        )
+    except DriverReminder.DoesNotExist:
+        logger.error(f"DriverReminder {reminder_id} not found.")
+        return
+
+    if reminder.status != "pending":
+        return
+
+    try:
+        from django.core.mail import send_mail
+        from django.conf import settings
+
+        subject = "Locomotion: Your Driver Coach Reminder"
+        message_body = (
+            f"Hello {reminder.driver.user.name or 'Driver'},\n\n"
+            f"Your Driver Coach has a reminder for you:\n"
+            f"\"{reminder.message}\"\n\n"
+            f"Set at: {reminder.remind_at.strftime('%H:%M')}\n\n"
+            "Stay safe and happy driving!\n"
+            "Locomotion Team"
+        )
+        
+        send_mail(
+            subject=subject,
+            message=message_body,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[reminder.driver.user.email],
+            fail_silently=False,
+        )
+
+        logger.info(
+            f"[REMINDER SENT] driver={reminder.driver.user.email} at={reminder.remind_at.isoformat()} msg={reminder.message}"
+        )
+        reminder.status = "sent"
+        reminder.sent_at = timezone.now()
+        reminder.last_error = ""
+        reminder.save(update_fields=["status", "sent_at", "last_error"])
+    except Exception as e:
+        reminder.status = "failed"
+        reminder.last_error = str(e)
+        reminder.save(update_fields=["status", "last_error"])
+        logger.error(f"Failed to send reminder {reminder_id}: {e}")
+
+

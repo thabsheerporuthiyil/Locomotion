@@ -4,5 +4,7 @@ qdrant-client==1.9.1
 sentence-transformers==3.0.1
 pydantic==2.7.4
 python-dotenv==1.0.1
+httpx
 langchain-google-genai
 langchain-core
+langchain-groq
