@@ -8,7 +8,7 @@ import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 // Firebase project configuration 
 const firebaseConfig = {
-  apiKey: "AIzaSyD9Oje6HSMxBdwbEWnAXOzG0iJtx4pZ0d",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
   authDomain: "locomotion-7c62d.firebaseapp.com",
   projectId: "locomotion-7c62d",
   storageBucket: "locomotion-7c62d.firebasestorage.app",
