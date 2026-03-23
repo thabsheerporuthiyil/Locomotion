@@ -1,0 +1,11 @@
+{
+  "name": "locomotion-react-wrapper",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix \"./Locomotion React\" install",
+    "dev": "npm --prefix \"./Locomotion React\" run dev",
+    "build": "npm --prefix \"./Locomotion React\" run build",
+    "lint": "npm --prefix \"./Locomotion React\" run lint",
+    "preview": "npm --prefix \"./Locomotion React\" run preview"
+  }
+}

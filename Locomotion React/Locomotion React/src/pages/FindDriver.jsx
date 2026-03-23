@@ -3,6 +3,7 @@ import { useDriverStore } from "../store/driverStore";
 import DriverCard from "../components/DriverCard";
 import LocationFilter from "../components/LocationFilter";
 import axios from "axios";
+import { AI_BASE_URL } from "../utils/api_base";
 
 export default function FindDriver() {
   const filteredDrivers = useDriverStore((state) => state.filteredDrivers || []);
@@ -27,7 +28,7 @@ export default function FindDriver() {
     setAiMatchedIds([]);
 
     try {
-      const response = await axios.post("http://localhost:80/api/ai/match-drivers", {
+      const response = await axios.post(`${AI_BASE_URL}match-drivers`, {
         query: aiQuery
       });
 
