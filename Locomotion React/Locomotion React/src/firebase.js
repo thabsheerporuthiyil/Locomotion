@@ -34,9 +34,17 @@ export const requestFirebaseNotificationPermission = () => {
       if (permission === 'granted') {
 
         console.log('Notification permission granted.');
-        getToken(messaging, {
-          vapidKey: 'BKWoCwvan93p_UQsHHs06SMebk35MMcR898Pyv3J0d25VTY1c2uaMKNhcgPMH3rWvYo-p0ivGO4G8GGK1iUdicQ'
-        })
+        const vapidKey =
+          "BKWoCwvan93p_UQsHHs06SMebk35MMcR898Pyv3J0d25VTY1c2uaMKNhcgPMH3rWvYo-p0ivGO4G8GGK1iUdicQ";
+
+        const tokenPromise =
+          "serviceWorker" in navigator
+            ? navigator.serviceWorker.ready.then((serviceWorkerRegistration) =>
+                getToken(messaging, { vapidKey, serviceWorkerRegistration }),
+              )
+            : getToken(messaging, { vapidKey });
+
+        tokenPromise
 
         .then((currentToken) => {
           // If token successfully generated

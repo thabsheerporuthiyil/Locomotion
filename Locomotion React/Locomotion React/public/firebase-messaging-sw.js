@@ -7,7 +7,7 @@ importScripts('https://www.gstatic.com/firebasejs/10.9.0/firebase-messaging-comp
 
 
 const firebaseConfig = {
-  apiKey: "__FIREBASE_API_KEY__",
+  apiKey: new URL(self.location.href).searchParams.get("apiKey") || "",
   authDomain: "locomotion-7c62d.firebaseapp.com",
   projectId: "locomotion-7c62d",
   storageBucket: "locomotion-7c62d.firebasestorage.app",
