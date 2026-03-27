@@ -1,0 +1,52 @@
+{{- if .Values.fastapiAi.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "locomotion.fullname" . }}-fastapi-ai
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: fastapi-ai
+spec:
+  replicas: {{ .Values.fastapiAi.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "locomotion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: fastapi-ai
+  template:
+    metadata:
+      labels:
+        {{- include "locomotion.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: fastapi-ai
+    spec:
+      serviceAccountName: {{ include "locomotion.fastapiAiServiceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: fastapi-ai
+          image: {{ include "locomotion.aiImage" . }}
+          imagePullPolicy: {{ .Values.images.ai.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.fastapiAi.containerPort }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "locomotion.configMapName" . }}
+            - secretRef:
+                name: {{ include "locomotion.secretName" . }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.fastapiAi.resources | nindent 12 }}
+{{- end }}

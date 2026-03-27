@@ -1,0 +1,240 @@
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  imagePullSecrets: []
+  storageClass: ""
+
+images:
+  backend:
+    repository: locomotion-web
+    tag: latest
+    pullPolicy: IfNotPresent
+  ai:
+    repository: locomotion-fastapi-ai
+    tag: latest
+    pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+fastapiAiServiceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+
+appConfig:
+  debug: false
+  allowedHosts:
+    - "*"
+  corsAllowedOrigins:
+    - http://localhost:5173
+  csrfTrustedOrigins:
+    - http://localhost:5173
+  googleClientId: ""
+  emailHost: smtp.gmail.com
+  emailPort: "587"
+  emailUseTls: "True"
+  defaultFromEmail: ""
+  orsApiKey: ""
+  razorpayKeyId: ""
+  useS3: true
+  awsRegion: eu-north-1
+  awsStorageBucketName: ""
+  awsMediaUrlExpireSeconds: "3600"
+  llmProvider: gemini
+  aiServiceUrl: ""
+  qdrantHost: ""
+  qdrantPort: "6333"
+  redisCacheUrl: ""
+  channelRedisUrl: ""
+  celeryBrokerUrl: ""
+  postgresDb: locomotion
+  postgresUser: postgres
+  postgresHost: postgres
+  postgresPort: "5432"
+  sqsQueueUrl: ""
+  firebaseServiceAccountPath: /var/secrets/firebase/firebase-service-account.json
+  aiAllowedOrigins:
+    - http://localhost:5173
+
+secrets:
+  create: true
+  existingSecret: ""
+  djangoSecretKey: ""
+  postgresPassword: ""
+  emailHostUser: ""
+  emailHostPassword: ""
+  awsAccessKeyId: ""
+  awsSecretAccessKey: ""
+  geminiApiKey: ""
+  groqApiKey: ""
+  razorpayKeySecret: ""
+  firebaseServiceAccountJson: ""
+
+web:
+  enabled: true
+  replicaCount: 2
+  command:
+    - daphne
+    - -b
+    - 0.0.0.0
+    - -p
+    - "8000"
+    - Locomotion.asgi:application
+  containerPort: 8000
+  service:
+    type: ClusterIP
+    port: 8000
+    annotations: {}
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  pdb:
+    enabled: true
+    minAvailable: 1
+
+celery:
+  enabled: true
+  replicaCount: 1
+  command:
+    - celery
+    - -A
+    - Locomotion
+    - worker
+    - --loglevel=info
+    - --pool=solo
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+celeryBeat:
+  enabled: true
+  replicaCount: 1
+  command:
+    - celery
+    - -A
+    - Locomotion
+    - beat
+    - -l
+    - info
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+notificationWorker:
+  enabled: true
+  replicaCount: 1
+  command:
+    - python
+    - notification_worker.py
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  serviceAccount:
+    create: true
+    name: ""
+    annotations: {}
+  firebase:
+    existingSecretName: ""
+    key: firebase-service-account.json
+
+fastapiAi:
+  enabled: true
+  replicaCount: 1
+  containerPort: 8000
+  service:
+    port: 8000
+    annotations: {}
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 75
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  hosts:
+    - host: localhost
+      paths:
+        - path: /api/ai
+          pathType: Prefix
+          service: fastapi-ai
+        - path: /
+          pathType: Prefix
+          service: web
+  tls: []
+
+migrations:
+  enabled: true
+  backoffLimit: 3
+
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15"
+    pullPolicy: IfNotPresent
+  auth:
+    database: locomotion
+    username: postgres
+  persistence:
+    enabled: true
+    size: 10Gi
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 6379
+
+qdrant:
+  enabled: true
+  image:
+    repository: qdrant/qdrant
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    port: 6333
+  persistence:
+    enabled: true
+    size: 10Gi

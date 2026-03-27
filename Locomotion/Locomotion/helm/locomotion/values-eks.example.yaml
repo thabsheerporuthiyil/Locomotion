@@ -1,0 +1,118 @@
+global:
+  imagePullSecrets:
+    - name: ghcr-regcred
+
+images:
+  backend:
+    repository: ghcr.io/your-org/locomotion-backend
+    tag: "2026-03-27"
+  ai:
+    repository: ghcr.io/your-org/locomotion-fastapi-ai
+    tag: "2026-03-27"
+
+serviceAccount:
+  create: true
+  name: locomotion-app
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/locomotion-app-irsa-role
+
+fastapiAiServiceAccount:
+  create: true
+  name: locomotion-fastapi-ai
+  annotations: {}
+
+appConfig:
+  debug: false
+  allowedHosts:
+    - api.example.com
+  corsAllowedOrigins:
+    - https://app.example.com
+  csrfTrustedOrigins:
+    - https://app.example.com
+  googleClientId: your-google-web-client-id
+  defaultFromEmail: noreply@example.com
+  useS3: true
+  awsRegion: eu-north-1
+  awsStorageBucketName: locomotion-media
+  awsMediaUrlExpireSeconds: "3600"
+  llmProvider: gemini
+  sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/123456789012/locomotion-notifications
+  aiAllowedOrigins:
+    - https://app.example.com
+  postgresDb: locomotion
+  postgresUser: locomotion
+  postgresHost: your-rds-endpoint.rds.amazonaws.com
+  postgresPort: "5432"
+  redisCacheUrl: redis://your-elasticache-endpoint:6379/1
+  channelRedisUrl: redis://your-elasticache-endpoint:6379/1
+  celeryBrokerUrl: redis://your-elasticache-endpoint:6379/0
+  qdrantHost: your-qdrant-endpoint
+  qdrantPort: "6333"
+
+secrets:
+  create: false
+  existingSecret: locomotion-app-secrets
+
+web:
+  replicaCount: 3
+  service:
+    annotations:
+      alb.ingress.kubernetes.io/healthcheck-path: /swagger/
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+celery:
+  replicaCount: 2
+
+notificationWorker:
+  replicaCount: 2
+  serviceAccount:
+    create: true
+    name: locomotion-notification-worker
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/locomotion-notification-irsa-role
+  firebase:
+    existingSecretName: locomotion-firebase-admin
+
+fastapiAi:
+  replicaCount: 2
+  service:
+    annotations:
+      alb.ingress.kubernetes.io/healthcheck-path: /
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 75
+
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-north-1:123456789012:certificate/replace-me
+  hosts:
+    - host: api.example.com
+      paths:
+        - path: /api/ai
+          pathType: Prefix
+          service: fastapi-ai
+        - path: /
+          pathType: Prefix
+          service: web
+  tls: []
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+qdrant:
+  enabled: false

@@ -1,0 +1,39 @@
+{{- if .Values.celery.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "locomotion.fullname" . }}-celery
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: celery
+spec:
+  replicas: {{ .Values.celery.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "locomotion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: celery
+  template:
+    metadata:
+      labels:
+        {{- include "locomotion.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: celery
+    spec:
+      serviceAccountName: {{ include "locomotion.serviceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: celery
+          image: {{ include "locomotion.backendImage" . }}
+          imagePullPolicy: {{ .Values.images.backend.pullPolicy }}
+          command:
+            {{- toYaml .Values.celery.command | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "locomotion.configMapName" . }}
+            - secretRef:
+                name: {{ include "locomotion.secretName" . }}
+          resources:
+            {{- toYaml .Values.celery.resources | nindent 12 }}
+{{- end }}

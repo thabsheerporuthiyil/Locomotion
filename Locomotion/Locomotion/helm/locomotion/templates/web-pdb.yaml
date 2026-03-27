@@ -1,0 +1,14 @@
+{{- if and .Values.web.enabled .Values.web.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "locomotion.fullname" . }}-web
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.web.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "locomotion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
+{{- end }}

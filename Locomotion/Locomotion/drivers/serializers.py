@@ -1,5 +1,7 @@
 from rest_framework import serializers
 
+from Locomotion.media_utils import (build_media_url, validate_document_upload,
+                                    validate_image_upload)
 from .models import (DriverApplication, DriverApplicationReview, DriverProfile,
                      DriverVehicle)
 
@@ -60,6 +62,51 @@ class DriverApplicationSerializer(serializers.ModelSerializer):
             "insurance_document",
             "vehicle_image",
         ]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        for field_name in (
+            "profile_image",
+            "license_document",
+            "rc_document",
+            "insurance_document",
+            "vehicle_image",
+        ):
+            data[field_name] = build_media_url(
+                getattr(instance, field_name, None), request=request
+            )
+        return data
+
+    def validate_profile_image(self, value):
+        try:
+            return validate_image_upload(value, label="Profile image", max_size_mb=5)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_vehicle_image(self, value):
+        try:
+            return validate_image_upload(value, label="Vehicle image", max_size_mb=6)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_license_document(self, value):
+        try:
+            return validate_document_upload(value, label="License document", max_size_mb=10)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_rc_document(self, value):
+        try:
+            return validate_document_upload(value, label="RC document", max_size_mb=10)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_insurance_document(self, value):
+        try:
+            return validate_document_upload(value, label="Insurance document", max_size_mb=10)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
 
     def validate(self, data):
         service_type = data.get("service_type")
@@ -125,7 +172,7 @@ class DriverListSerializer(serializers.ModelSerializer):
     taluk = serializers.CharField(source="panchayath.taluk.name")
     panchayath_name = serializers.CharField(source="panchayath.name")
     vehicle_full_name = serializers.SerializerMethodField()
-    profile_image = serializers.ImageField(read_only=True)
+    profile_image = serializers.SerializerMethodField()
     vehicle_category_name = serializers.SerializerMethodField()
     vehicle_registration_number = serializers.SerializerMethodField()
     all_vehicles = serializers.SerializerMethodField()
@@ -151,28 +198,23 @@ class DriverListSerializer(serializers.ModelSerializer):
             "total_ratings",
         ]
 
+    def get_profile_image(self, obj):
+        return build_media_url(obj.profile_image, request=self.context.get("request"))
+
     def get_all_vehicles(self, obj):
         vehicles_data = []
 
         # Approved Vehicles
-        # We need the request context to build absolute URLs for images
         request = self.context.get("request")
 
         approved_vehicles = obj.vehicles.filter(status="approved")
         for v in approved_vehicles:
-            image_url = None
-            if v.vehicle_image:
-                if request:
-                    image_url = request.build_absolute_uri(v.vehicle_image.url)
-                else:
-                    image_url = v.vehicle_image.url
-
             vehicles_data.append(
                 {
                     "model": f"{v.vehicle_model.brand.name} {v.vehicle_model.name}",
                     "category": v.vehicle_category.name,
                     "registration": v.registration_number,
-                    "image": image_url,
+                    "image": build_media_url(v.vehicle_image, request=request),
                 }
             )
 
@@ -275,6 +317,33 @@ class DriverVehicleSerializer(serializers.ModelSerializer):
             "status",
         ]
         read_only_fields = ["status", "is_primary"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        for field_name in ("vehicle_image", "rc_document", "insurance_document"):
+            data[field_name] = build_media_url(
+                getattr(instance, field_name, None), request=request
+            )
+        return data
+
+    def validate_vehicle_image(self, value):
+        try:
+            return validate_image_upload(value, label="Vehicle image", max_size_mb=6)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_rc_document(self, value):
+        try:
+            return validate_document_upload(value, label="RC document", max_size_mb=10)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
+
+    def validate_insurance_document(self, value):
+        try:
+            return validate_document_upload(value, label="Insurance document", max_size_mb=10)
+        except ValueError as exc:
+            raise serializers.ValidationError(str(exc))
 
     def validate(self, data):
         # We enforce all fields are provided when adding a new vehicle

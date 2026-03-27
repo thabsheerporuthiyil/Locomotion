@@ -1,0 +1,22 @@
+{{- if .Values.fastapiAi.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "locomotion.fullname" . }}-fastapi-ai
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: fastapi-ai
+  {{- with .Values.fastapiAi.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "locomotion.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: fastapi-ai
+  ports:
+    - name: http
+      port: {{ .Values.fastapiAi.service.port }}
+      targetPort: http
+{{- end }}

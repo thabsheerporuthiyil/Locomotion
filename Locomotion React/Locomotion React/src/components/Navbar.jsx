@@ -8,6 +8,7 @@ export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [avatarErrored, setAvatarErrored] = useState(false);
   const profileRef = useRef(null);
 
   const {
@@ -15,6 +16,7 @@ export default function Navbar() {
     logout,
     name,
     email,
+    profileImageUrl,
     role,
     isDriver,
     driverApplication,
@@ -22,6 +24,10 @@ export default function Navbar() {
 
   const applicationStatus = driverApplication?.status;
   const firstLetter = name ? name.charAt(0).toUpperCase() : "U";
+
+  useEffect(() => {
+    setAvatarErrored(false);
+  }, [profileImageUrl]);
 
   // Handle scroll effect for slightly more prominent shadow
   useEffect(() => {
@@ -113,7 +119,16 @@ export default function Navbar() {
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
                     className="w-11 h-11 rounded-full bg-indigo-50 border-2 border-indigo-100 text-indigo-600 font-bold flex items-center justify-center hover:bg-indigo-100 hover:border-indigo-200 transition-all shadow-sm overflow-hidden"
                   >
-                    {firstLetter}
+                    {profileImageUrl && !avatarErrored ? (
+                      <img
+                        src={profileImageUrl}
+                        alt={name || "Profile"}
+                        className="w-full h-full object-cover"
+                        onError={() => setAvatarErrored(true)}
+                      />
+                    ) : (
+                      firstLetter
+                    )}
                   </button>
 
                   {/* Profile Dropdown */}
@@ -177,7 +192,16 @@ export default function Navbar() {
                 <div className="py-4 border-b border-slate-100 mb-2">
                   <div className="flex items-center space-x-4 px-2">
                     <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 font-bold flex items-center justify-center overflow-hidden">
-                      {firstLetter}
+                      {profileImageUrl && !avatarErrored ? (
+                        <img
+                          src={profileImageUrl}
+                          alt={name || "Profile"}
+                          className="w-full h-full object-cover"
+                          onError={() => setAvatarErrored(true)}
+                        />
+                      ) : (
+                        firstLetter
+                      )}
                     </div>
                     <div>
                       <p className="font-bold text-slate-900">{name || "User"}</p>

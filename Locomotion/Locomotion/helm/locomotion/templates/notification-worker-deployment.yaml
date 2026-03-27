@@ -1,0 +1,50 @@
+{{- if .Values.notificationWorker.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "locomotion.fullname" . }}-notification-worker
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: notification-worker
+spec:
+  replicas: {{ .Values.notificationWorker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "locomotion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: notification-worker
+  template:
+    metadata:
+      labels:
+        {{- include "locomotion.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: notification-worker
+    spec:
+      serviceAccountName: {{ include "locomotion.notificationWorkerServiceAccountName" . }}
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: notification-worker
+          image: {{ include "locomotion.backendImage" . }}
+          imagePullPolicy: {{ .Values.images.backend.pullPolicy }}
+          command:
+            {{- toYaml .Values.notificationWorker.command | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "locomotion.configMapName" . }}
+            - secretRef:
+                name: {{ include "locomotion.secretName" . }}
+          volumeMounts:
+            - name: firebase-service-account
+              mountPath: /var/secrets/firebase
+              readOnly: true
+          resources:
+            {{- toYaml .Values.notificationWorker.resources | nindent 12 }}
+      volumes:
+        - name: firebase-service-account
+          secret:
+            secretName: {{ include "locomotion.firebaseSecretName" . }}
+            items:
+              - key: {{ .Values.notificationWorker.firebase.key }}
+                path: firebase-service-account.json
+{{- end }}

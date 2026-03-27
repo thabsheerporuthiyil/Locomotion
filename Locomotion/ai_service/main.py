@@ -14,9 +14,19 @@ import re
 
 app = FastAPI(title="Locomotion AI Matchmaker")
 
+
+def _split_env_list(name: str, default: list[str]) -> list[str]:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=_split_env_list(
+        "ALLOWED_ORIGINS",
+        ["http://localhost:5173", "http://127.0.0.1:5173"],
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

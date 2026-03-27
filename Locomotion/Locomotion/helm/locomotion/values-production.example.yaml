@@ -1,0 +1,89 @@
+global:
+  imagePullSecrets:
+    - name: regcred
+
+images:
+  backend:
+    repository: ghcr.io/your-org/locomotion-backend
+    tag: "2026-03-27"
+  ai:
+    repository: ghcr.io/your-org/locomotion-fastapi-ai
+    tag: "2026-03-27"
+
+appConfig:
+  debug: false
+  allowedHosts:
+    - api.example.com
+  corsAllowedOrigins:
+    - https://app.example.com
+  csrfTrustedOrigins:
+    - https://app.example.com
+  googleClientId: your-google-web-client-id
+  defaultFromEmail: noreply@example.com
+  useS3: true
+  awsRegion: eu-north-1
+  awsStorageBucketName: locomotion-media
+  llmProvider: gemini
+  sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/123456789012/locomotion-notifications
+  aiAllowedOrigins:
+    - https://app.example.com
+  postgresDb: locomotion
+  postgresUser: locomotion
+  postgresHost: your-managed-postgres-host
+  postgresPort: "5432"
+  redisCacheUrl: redis://your-managed-redis:6379/1
+  channelRedisUrl: redis://your-managed-redis:6379/1
+  celeryBrokerUrl: redis://your-managed-redis:6379/0
+  qdrantHost: your-qdrant-host
+  qdrantPort: "6333"
+
+secrets:
+  create: false
+  existingSecret: locomotion-app-secrets
+
+web:
+  replicaCount: 3
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+
+fastapiAi:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+
+notificationWorker:
+  firebase:
+    existingSecretName: locomotion-firebase-admin
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-body-size: 10m
+  hosts:
+    - host: api.example.com
+      paths:
+        - path: /api/ai
+          pathType: Prefix
+          service: fastapi-ai
+        - path: /
+          pathType: Prefix
+          service: web
+  tls:
+    - secretName: locomotion-api-tls
+      hosts:
+        - api.example.com
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false
+
+qdrant:
+  enabled: false

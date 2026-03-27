@@ -1,10 +1,98 @@
 from django.conf import settings
 from django.db import models
 
+from Locomotion.media_utils import build_unique_upload_path
 from location.models import Panchayath
 from vehicles.models import VehicleCategory, VehicleModel
 
 User = settings.AUTH_USER_MODEL
+
+
+def driver_application_profile_upload_to(instance, filename):
+    return build_unique_upload_path(
+        "driver_applications",
+        instance.user_id or "pending",
+        "profile",
+        filename=filename,
+    )
+
+
+def driver_application_license_upload_to(instance, filename):
+    return build_unique_upload_path(
+        "driver_applications",
+        instance.user_id or "pending",
+        "license",
+        filename=filename,
+    )
+
+
+def driver_application_rc_upload_to(instance, filename):
+    return build_unique_upload_path(
+        "driver_applications",
+        instance.user_id or "pending",
+        "rc",
+        filename=filename,
+    )
+
+
+def driver_application_insurance_upload_to(instance, filename):
+    return build_unique_upload_path(
+        "driver_applications",
+        instance.user_id or "pending",
+        "insurance",
+        filename=filename,
+    )
+
+
+def driver_application_vehicle_image_upload_to(instance, filename):
+    return build_unique_upload_path(
+        "driver_applications",
+        instance.user_id or "pending",
+        "vehicle",
+        filename=filename,
+    )
+
+
+def driver_profile_image_upload_to(instance, filename):
+    return build_unique_upload_path(
+        "drivers",
+        instance.user_id or "pending",
+        "profile",
+        filename=filename,
+    )
+
+
+def driver_vehicle_image_upload_to(instance, filename):
+    owner_id = instance.driver.user_id if instance.driver_id else "pending"
+    return build_unique_upload_path(
+        "drivers",
+        owner_id,
+        "vehicles",
+        "image",
+        filename=filename,
+    )
+
+
+def driver_vehicle_rc_upload_to(instance, filename):
+    owner_id = instance.driver.user_id if instance.driver_id else "pending"
+    return build_unique_upload_path(
+        "drivers",
+        owner_id,
+        "vehicles",
+        "rc",
+        filename=filename,
+    )
+
+
+def driver_vehicle_insurance_upload_to(instance, filename):
+    owner_id = instance.driver.user_id if instance.driver_id else "pending"
+    return build_unique_upload_path(
+        "drivers",
+        owner_id,
+        "vehicles",
+        "insurance",
+        filename=filename,
+    )
 
 
 class DriverApplication(models.Model):
@@ -40,18 +128,18 @@ class DriverApplication(models.Model):
     vehicle_registration_number = models.CharField(max_length=20, null=True, blank=True)
 
     # Documents & Images
-    profile_image = models.ImageField(upload_to="profiles/")
-    license_document = models.FileField(upload_to="driver_documents/licenses/")
+    profile_image = models.ImageField(upload_to=driver_application_profile_upload_to)
+    license_document = models.FileField(upload_to=driver_application_license_upload_to)
 
     # Vehicle Documents (Only if driver_with_vehicle)
     rc_document = models.FileField(
-        upload_to="driver_documents/rc/", null=True, blank=True
+        upload_to=driver_application_rc_upload_to, null=True, blank=True
     )
     insurance_document = models.FileField(
-        upload_to="driver_documents/insurance/", null=True, blank=True
+        upload_to=driver_application_insurance_upload_to, null=True, blank=True
     )
     vehicle_image = models.ImageField(
-        upload_to="vehicle_images/", null=True, blank=True
+        upload_to=driver_application_vehicle_image_upload_to, null=True, blank=True
     )
 
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
@@ -123,7 +211,9 @@ class DriverProfile(models.Model):
     panchayath = models.ForeignKey(
         Panchayath, on_delete=models.PROTECT, related_name="drivers"
     )
-    profile_image = models.ImageField(upload_to="profiles/", null=True, blank=True)
+    profile_image = models.ImageField(
+        upload_to=driver_profile_image_upload_to, null=True, blank=True
+    )
 
     is_active = models.BooleanField(default=True)
     is_available = models.BooleanField(default=True)
@@ -154,9 +244,9 @@ class DriverVehicle(models.Model):
 
     registration_number = models.CharField(max_length=20)
 
-    vehicle_image = models.ImageField(upload_to="vehicle_images/")
-    rc_document = models.FileField(upload_to="driver_documents/rc/")
-    insurance_document = models.FileField(upload_to="driver_documents/insurance/")
+    vehicle_image = models.ImageField(upload_to=driver_vehicle_image_upload_to)
+    rc_document = models.FileField(upload_to=driver_vehicle_rc_upload_to)
+    insurance_document = models.FileField(upload_to=driver_vehicle_insurance_upload_to)
 
     is_primary = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

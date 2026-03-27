@@ -16,6 +16,13 @@ from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+
+def _split_env(value, default=None):
+    raw = os.environ.get(value)
+    if raw is None:
+        return list(default or [])
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
 # AI microservice (FastAPI) base URL. In docker-compose the service name is `fastapi-ai`.
 AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://fastapi-ai:8000")
 
@@ -24,12 +31,15 @@ AI_SERVICE_URL = os.environ.get("AI_SERVICE_URL", "http://fastapi-ai:8000")
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-mslu#sdjycu=a&=g^jjdi)k4atcbwy11zeg1mx^yf=pi8khm78"
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-mslu#sdjycu=a&=g^jjdi)k4atcbwy11zeg1mx^yf=pi8khm78",
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DEBUG", "True").lower() == "true"
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = _split_env("ALLOWED_HOSTS", ["*"])
 
 AUTH_USER_MODEL = "accounts.User"
 
@@ -68,11 +78,15 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-]
+CORS_ALLOWED_ORIGINS = _split_env(
+    "CORS_ALLOWED_ORIGINS",
+    [
+        "http://localhost:5173",
+    ],
+)
 
 CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = _split_env("CSRF_TRUSTED_ORIGINS", CORS_ALLOWED_ORIGINS)
 
 
 REST_FRAMEWORK = {
@@ -128,18 +142,18 @@ ASGI_APPLICATION = "Locomotion.asgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "locomotion",
-        "USER": "postgres",
-        "PASSWORD": "12345678",
-        "HOST": "db",
-        "PORT": "5432",
+        "NAME": os.environ.get("POSTGRES_DB", "locomotion"),
+        "USER": os.environ.get("POSTGRES_USER", "postgres"),
+        "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "12345678"),
+        "HOST": os.environ.get("POSTGRES_HOST", "db"),
+        "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
 
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": "redis://redis:6379/1",
+        "LOCATION": os.environ.get("REDIS_CACHE_URL", "redis://redis:6379/1"),
     }
 }
 
@@ -147,7 +161,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('redis', 6379)],
+            "hosts": [os.environ.get("CHANNEL_REDIS_URL", "redis://redis:6379/1")],
         },
     },
 }
@@ -220,13 +234,33 @@ if USE_S3:
     AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
     AWS_S3_REGION_NAME = os.environ.get("AWS_REGION", "eu-north-1")
-    AWS_S3_CUSTOM_DOMAIN = f"{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com"
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
     AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
-    MEDIA_URL = f"https://{AWS_S3_CUSTOM_DOMAIN}/media/"
+    AWS_MEDIA_URL_EXPIRE_SECONDS = int(
+        os.environ.get("AWS_MEDIA_URL_EXPIRE_SECONDS", "3600")
+    )
+    AWS_QUERYSTRING_AUTH = True
+    AWS_S3_SIGNATURE_VERSION = "s3v4"
+    STORAGES = {
+        "default": {
+            "BACKEND": "Locomotion.storage_backends.MediaStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+    MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
 else:
+    AWS_MEDIA_URL_EXPIRE_SECONDS = 0
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
     MEDIA_URL = "/media/"
     MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
@@ -234,9 +268,9 @@ GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
-EMAIL_HOST = "smtp.gmail.com"
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "True").lower() == "true"
 
 EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
 EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")

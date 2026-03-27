@@ -3,6 +3,7 @@ import pyotp
 import qrcode
 import base64
 from io import BytesIO
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.views import APIView
 from .models import EmailOTP, FCMDevice, Notification
 from rest_framework.response import Response
@@ -10,6 +11,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import (
     ForgotPasswordSendOTPSerializer,
     NotificationSerializer,
+    ProfileUpdateSerializer,
     RegisterSerializer,
     ResetPasswordSerializer,
     SendOTPSerializer,
@@ -556,10 +558,9 @@ class Disable2FAView(APIView):
 
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
 
-    def get(self, request):
-        user = request.user
-
+    def _serialize_user(self, request, user):
         driver_application = None
 
         if hasattr(user, "driver_application"):
@@ -577,7 +578,52 @@ class MeView(APIView):
                 "driver_application": driver_application,
             }
         )
-        return Response(base, status=status.HTTP_200_OK)
+        return base
+
+    def get(self, request):
+        user = request.user
+        response = Response(self._serialize_user(request, user), status=status.HTTP_200_OK)
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response["Pragma"] = "no-cache"
+        return response
+
+    @swagger_auto_schema(
+        operation_summary="Update current user profile",
+        request_body=ProfileUpdateSerializer,
+        responses={
+            200: openapi.Response("Profile updated", ProfileUpdateSerializer),
+            400: "Invalid profile data",
+        },
+    )
+    def patch(self, request):
+        user = request.user
+        old_profile_image_name = user.profile_image.name if user.profile_image else None
+
+        serializer = ProfileUpdateSerializer(
+            user,
+            data=request.data,
+            partial=True,
+            context={"request": request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        user.refresh_from_db()
+
+        new_profile_image_name = user.profile_image.name if user.profile_image else None
+        if (
+            old_profile_image_name
+            and new_profile_image_name
+            and old_profile_image_name != new_profile_image_name
+        ):
+            user.profile_image.storage.delete(old_profile_image_name)
+
+        response = Response(
+            self._serialize_user(request, user),
+            status=status.HTTP_200_OK,
+        )
+        response["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response["Pragma"] = "no-cache"
+        return response
 
 
 class UpdateFCMTokenView(APIView):

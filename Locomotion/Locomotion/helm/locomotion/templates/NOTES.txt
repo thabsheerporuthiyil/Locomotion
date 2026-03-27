@@ -1,0 +1,14 @@
+1. Check rollout status:
+   kubectl get pods -n {{ .Release.Namespace }}
+
+2. Migration job:
+   kubectl get jobs -n {{ .Release.Namespace }}
+
+3. If ingress is enabled, point DNS to the ingress controller and use:
+   {{- range .Values.ingress.hosts }}
+   http{{ if $.Values.ingress.tls }}s{{ end }}://{{ .host }}
+   {{- end }}
+
+4. Production recommendation:
+   - disable bundled PostgreSQL / Redis / Qdrant when you move to managed services
+   - provide an existing secret for Firebase service account and application secrets

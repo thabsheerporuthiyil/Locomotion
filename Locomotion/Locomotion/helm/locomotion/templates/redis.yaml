@@ -1,0 +1,44 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "locomotion.fullname" . }}-redis
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  ports:
+    - name: redis
+      port: {{ .Values.redis.service.port }}
+      targetPort: redis
+  selector:
+    {{- include "locomotion.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "locomotion.fullname" . }}-redis
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "locomotion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "locomotion.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          ports:
+            - name: redis
+              containerPort: {{ .Values.redis.service.port }}
+{{- end }}

@@ -15,6 +15,7 @@ const emptyAuthState = {
   role: null,
   name: null,
   email: null,
+  profileImageUrl: null,
   isDriver: false,
   hasApplied: false,
   is2FAEnabled: false,
@@ -28,6 +29,19 @@ export const useAuthStore = create((set, get) => ({
   error: null,
 
   setAccess: (access) => set({ access }),
+  setUserData: (data = {}) =>
+    set((state) => ({
+      ...state,
+      role: data.role ?? state.role,
+      name: data.name ?? state.name,
+      email: data.email ?? state.email,
+      profileImageUrl: data.profile_image_url ?? state.profileImageUrl,
+      isDriver: data.is_driver ?? state.isDriver,
+      hasApplied: data.has_applied ?? state.hasApplied,
+      is2FAEnabled: data.is_2fa_enabled ?? state.is2FAEnabled,
+      phoneNumber: data.phone_number ?? state.phoneNumber,
+      driverApplication: data.driver_application ?? state.driverApplication,
+    })),
   clearAuth: (error = null) =>
     set({
       ...emptyAuthState,
@@ -38,17 +52,10 @@ export const useAuthStore = create((set, get) => ({
   // ---------------- FETCH ME ----------------
   fetchMe: async () => {
     try {
-      const res = await api.get("accounts/me/");
-      set({
-        role: res.data.role,
-        name: res.data.name,
-        email: res.data.email,
-        isDriver: res.data.is_driver,
-        hasApplied: res.data.has_applied,
-        is2FAEnabled: res.data.is_2fa_enabled,
-        phoneNumber: res.data.phone_number,
-        driverApplication: res.data.driver_application || null,
+      const res = await api.get("accounts/me/", {
+        params: { _: Date.now() },
       });
+      get().setUserData(res.data);
       return res.data;
     } catch (err) {
       console.error("Me fetch failed", err);
@@ -223,6 +230,12 @@ export const useAuthStore = create((set, get) => ({
       });
       throw err;
     }
+  },
+
+  updateProfile: async (payload) => {
+    const res = await api.patch("accounts/me/", payload);
+    get().setUserData(res.data);
+    return res.data;
   },
 
   // ---------------- LOGOUT ----------------

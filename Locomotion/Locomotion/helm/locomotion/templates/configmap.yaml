@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "locomotion.configMapName" . }}
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+data:
+  DEBUG: {{ ternary "True" "False" .Values.appConfig.debug | quote }}
+  ALLOWED_HOSTS: {{ join "," .Values.appConfig.allowedHosts | quote }}
+  CORS_ALLOWED_ORIGINS: {{ join "," .Values.appConfig.corsAllowedOrigins | quote }}
+  CSRF_TRUSTED_ORIGINS: {{ join "," .Values.appConfig.csrfTrustedOrigins | quote }}
+  GOOGLE_CLIENT_ID: {{ .Values.appConfig.googleClientId | quote }}
+  EMAIL_HOST: {{ .Values.appConfig.emailHost | quote }}
+  EMAIL_PORT: {{ .Values.appConfig.emailPort | quote }}
+  EMAIL_USE_TLS: {{ .Values.appConfig.emailUseTls | quote }}
+  DEFAULT_FROM_EMAIL: {{ .Values.appConfig.defaultFromEmail | quote }}
+  ORS_API_KEY: {{ .Values.appConfig.orsApiKey | quote }}
+  RAZORPAY_KEY_ID: {{ .Values.appConfig.razorpayKeyId | quote }}
+  USE_S3: {{ ternary "True" "False" .Values.appConfig.useS3 | quote }}
+  AWS_REGION: {{ .Values.appConfig.awsRegion | quote }}
+  AWS_STORAGE_BUCKET_NAME: {{ .Values.appConfig.awsStorageBucketName | quote }}
+  AWS_MEDIA_URL_EXPIRE_SECONDS: {{ .Values.appConfig.awsMediaUrlExpireSeconds | quote }}
+  LLM_PROVIDER: {{ .Values.appConfig.llmProvider | quote }}
+  AI_SERVICE_URL: {{ default (printf "http://%s-fastapi-ai:%d" (include "locomotion.fullname" .) (int .Values.fastapiAi.service.port)) .Values.appConfig.aiServiceUrl | quote }}
+  AWS_SQS_QUEUE_URL: {{ .Values.appConfig.sqsQueueUrl | quote }}
+  FIREBASE_SERVICE_ACCOUNT_PATH: {{ .Values.appConfig.firebaseServiceAccountPath | quote }}
+  ALLOWED_ORIGINS: {{ join "," .Values.appConfig.aiAllowedOrigins | quote }}
+  {{- if .Values.postgresql.enabled }}
+  POSTGRES_DB: {{ .Values.postgresql.auth.database | quote }}
+  POSTGRES_USER: {{ .Values.postgresql.auth.username | quote }}
+  POSTGRES_HOST: {{ printf "%s-postgresql" (include "locomotion.fullname" .) | quote }}
+  POSTGRES_PORT: "5432"
+  {{- else }}
+  POSTGRES_DB: {{ default "locomotion" .Values.appConfig.postgresDb | quote }}
+  POSTGRES_USER: {{ default "postgres" .Values.appConfig.postgresUser | quote }}
+  POSTGRES_HOST: {{ default "postgres" .Values.appConfig.postgresHost | quote }}
+  POSTGRES_PORT: {{ default "5432" .Values.appConfig.postgresPort | quote }}
+  {{- end }}
+  {{- if .Values.redis.enabled }}
+  REDIS_CACHE_URL: {{ printf "redis://%s-redis:%d/1" (include "locomotion.fullname" .) (int .Values.redis.service.port) | quote }}
+  CHANNEL_REDIS_URL: {{ printf "redis://%s-redis:%d/1" (include "locomotion.fullname" .) (int .Values.redis.service.port) | quote }}
+  CELERY_BROKER_URL: {{ printf "redis://%s-redis:%d/0" (include "locomotion.fullname" .) (int .Values.redis.service.port) | quote }}
+  {{- else }}
+  REDIS_CACHE_URL: {{ .Values.appConfig.redisCacheUrl | quote }}
+  CHANNEL_REDIS_URL: {{ .Values.appConfig.channelRedisUrl | quote }}
+  CELERY_BROKER_URL: {{ .Values.appConfig.celeryBrokerUrl | quote }}
+  {{- end }}
+  {{- if .Values.qdrant.enabled }}
+  QDRANT_HOST: {{ printf "%s-qdrant" (include "locomotion.fullname" .) | quote }}
+  QDRANT_PORT: {{ .Values.qdrant.service.port | quote }}
+  {{- else }}
+  QDRANT_HOST: {{ .Values.appConfig.qdrantHost | quote }}
+  QDRANT_PORT: {{ .Values.appConfig.qdrantPort | quote }}
+  {{- end }}

@@ -3,6 +3,17 @@ from django.contrib.auth.models import (AbstractBaseUser, BaseUserManager,
 from django.db import models
 from django.utils import timezone
 
+from Locomotion.media_utils import build_unique_upload_path
+
+
+def user_profile_image_upload_to(instance, filename):
+    return build_unique_upload_path(
+        "users",
+        instance.id or "pending",
+        "profile",
+        filename=filename,
+    )
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email, name, password=None, role="customer"):
@@ -38,6 +49,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     is_2fa_enabled = models.BooleanField(default=False)
     twofa_secret = models.CharField(max_length=32, blank=True, null=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
+    profile_image = models.ImageField(
+        upload_to=user_profile_image_upload_to,
+        blank=True,
+        null=True,
+    )
     fcm_device_token = models.CharField(max_length=255, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True) 

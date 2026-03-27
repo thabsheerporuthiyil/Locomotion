@@ -1,0 +1,66 @@
+{{- if .Values.qdrant.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "locomotion.fullname" . }}-qdrant
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+spec:
+  ports:
+    - name: http
+      port: {{ .Values.qdrant.service.port }}
+      targetPort: http
+  selector:
+    {{- include "locomotion.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "locomotion.fullname" . }}-qdrant
+  labels:
+    {{- include "locomotion.labels" . | nindent 4 }}
+    app.kubernetes.io/component: qdrant
+spec:
+  serviceName: {{ include "locomotion.fullname" . }}-qdrant
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "locomotion.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: qdrant
+  template:
+    metadata:
+      labels:
+        {{- include "locomotion.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: qdrant
+    spec:
+      containers:
+        - name: qdrant
+          image: {{ .Values.qdrant.image.repository }}:{{ .Values.qdrant.image.tag }}
+          imagePullPolicy: {{ .Values.qdrant.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.qdrant.service.port }}
+          volumeMounts:
+            - name: storage
+              mountPath: /qdrant/storage
+      {{- if not .Values.qdrant.persistence.enabled }}
+      volumes:
+        - name: storage
+          emptyDir: {}
+      {{- end }}
+  {{- if .Values.qdrant.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      {{- if .Values.global.storageClass }}
+      storageClassName: {{ .Values.global.storageClass }}
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.qdrant.persistence.size }}
+  {{- end }}
+{{- end }}
