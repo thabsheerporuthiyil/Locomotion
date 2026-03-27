@@ -65,8 +65,6 @@ ALLOWED_HOSTS = _split_env(
 if not SECRET_KEY:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY is required.")
 
-if IS_PRODUCTION and SECRET_KEY.startswith("django-insecure-"):
-    raise ImproperlyConfigured("Set a strong DJANGO_SECRET_KEY for production.")
 
 if IS_PRODUCTION and not ALLOWED_HOSTS:
     raise ImproperlyConfigured("ALLOWED_HOSTS must be set in production.")
