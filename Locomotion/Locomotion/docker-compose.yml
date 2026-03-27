@@ -22,6 +22,8 @@ services:
   web:
     build: .
     command: daphne -b 0.0.0.0 -p 8000 Locomotion.asgi:application
+    env_file:
+      - .env
     volumes:
       - .:/app
     ports:
@@ -44,6 +46,8 @@ services:
   celery:
     build: .
     command: celery -A Locomotion worker --loglevel=info --pool=solo
+    env_file:
+      - .env
     volumes:
       - .:/app
     depends_on:
@@ -62,6 +66,8 @@ services:
   celery-beat:
     build: .
     command: celery -A Locomotion beat -l info
+    env_file:
+      - .env
     volumes:
       - .:/app
     depends_on:
@@ -75,6 +81,8 @@ services:
   notification-worker:
     build: .
     command: python notification_worker.py
+    env_file:
+      - .env
     volumes:
       - .:/app
     depends_on:
@@ -101,6 +109,8 @@ services:
   fastapi-ai:
     build: 
       context: ../ai_service 
+    env_file:
+      - .env
     ports:
       - "8001:8000"
     expose:
