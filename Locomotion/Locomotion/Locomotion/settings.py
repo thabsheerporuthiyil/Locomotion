@@ -230,9 +230,7 @@ else:
     MEDIA_URL = "/media/"
     MEDIA_ROOT = os.path.join(BASE_DIR, "media")
 
-GOOGLE_CLIENT_ID = (
-    "1068487642544-la6amm7hgtjo6bkr69lv27ajn28c0ruc.apps.googleusercontent.com"
-)
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 
@@ -240,20 +238,18 @@ EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = "locomotiondrivers@gmail.com"
-EMAIL_HOST_PASSWORD = "kymw pebh iyza ymsu"
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjI4NzZmYmJlZWRlYTQ5MTI4YzU0ZDNmMzE0OGFjYjA1IiwiaCI6Im11cm11cjY0In0="
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "noreply@locomotion.local")
+ORS_API_KEY = os.environ.get("ORS_API_KEY", "")
 
 # Razorpay Integration
-RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "rzp_test_RzhW17wdnjByQf")
-RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "o1lJqskWhZUHK6Ex2p4Vzafb")
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
 # AWS SQS Configuration
-AWS_REGION = "eu-north-1"
+AWS_REGION = os.environ.get("AWS_REGION", "eu-north-1")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
-AWS_SQS_QUEUE_URL = (
-    "https://sqs.eu-north-1.amazonaws.com/471914528467/locomotion-notifications"
-)
+AWS_SQS_QUEUE_URL = os.environ.get("AWS_SQS_QUEUE_URL", "")

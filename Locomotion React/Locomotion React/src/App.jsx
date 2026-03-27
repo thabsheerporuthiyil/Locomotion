@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Navigate, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useAuthStore } from "./store/authStore";
 
@@ -7,6 +7,10 @@ import Login from "./pages/Login";
 import VerifyOTP from "./pages/VerifyOTP";
 import Home from "./pages/Home";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminLayout from "./pages/admin/AdminLayout";
+import Users from "./pages/admin/Users";
+import DriverApplications from "./pages/admin/DriverApplications";
+import VehicleRequests from "./pages/admin/VehicleRequests";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -82,13 +86,19 @@ export default function App() {
           />
 
           <Route
-            path="/admin/dashboard"
+            path="/admin"
             element={
               <ProtectedRoute role="admin">
-                <AdminDashboard />
+                <AdminLayout />
               </ProtectedRoute>
             }
-          />
+          >
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="users" element={<Users />} />
+            <Route path="drivers" element={<DriverApplications />} />
+            <Route path="vehicles" element={<VehicleRequests />} />
+          </Route>
 
           <Route
             path="/driver/dashboard"

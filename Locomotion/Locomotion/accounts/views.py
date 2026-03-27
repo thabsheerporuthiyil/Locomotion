@@ -4,10 +4,18 @@ import qrcode
 import base64
 from io import BytesIO
 from rest_framework.views import APIView
-from .models import EmailOTP
+from .models import EmailOTP, FCMDevice, Notification
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import RegisterSerializer,SendOTPSerializer,ForgotPasswordSendOTPSerializer,ResetPasswordSerializer,VerifyOTPRequestSerializer
+from .serializers import (
+    ForgotPasswordSendOTPSerializer,
+    NotificationSerializer,
+    RegisterSerializer,
+    ResetPasswordSerializer,
+    SendOTPSerializer,
+    UserMeSerializer,
+    VerifyOTPRequestSerializer,
+)
 from rest_framework import status
 from django.utils import timezone
 from datetime import timedelta
@@ -175,6 +183,11 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         if not user or not user.check_password(password):
             return Response({"error": "Invalid credentials"}, status=401)
 
+        # If credentials are correct but the account is blocked, show a clear message.
+        # (Checked after password verification to avoid leaking account existence.)
+        if not user.is_active:
+            return Response({"error": "Account blocked"}, status=403)
+
         if not user.is_staff and not user.is_superuser:
             if not user.is_verified:
                 return Response({"error": "Email not verified"}, status=403)
@@ -237,6 +250,9 @@ class CookieTokenRefreshView(APIView):
             token = RefreshToken(refresh)
             user_id = token['user_id']
             user = User.objects.get(id=user_id)
+
+            if not user.is_active:
+                return Response({"error": "Account blocked"}, status=403)
             
             role = "admin" if (user.is_staff or user.is_superuser) else "customer"
             
@@ -427,15 +443,17 @@ class Setup2FAView(APIView):
         if user.is_2fa_enabled:
             return Response({"error": "2FA already enabled"}, status=400)
 
-        secret = pyotp.random_base32()
-        user.twofa_secret = secret
-        user.save()
+        # Reuse secret if setup was already started but not yet confirmed.
+        secret = user.twofa_secret or pyotp.random_base32()
+        if user.twofa_secret != secret:
+            user.twofa_secret = secret
+            user.save(update_fields=["twofa_secret"])
 
         totp = pyotp.TOTP(secret)
 
         otp_url = totp.provisioning_uri(
             name=user.email,
-            issuer_name="YourApp"
+            issuer_name="Locomotion"
         )
 
         qr = qrcode.make(otp_url)
@@ -452,16 +470,26 @@ class Confirm2FAView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        code = request.data.get("code")
         user = request.user
+
+        if not user.twofa_secret:
+            return Response(
+                {"error": "2FA setup not started. Please generate a new QR code."},
+                status=400,
+            )
+
+        code = str(request.data.get("code") or "").strip().replace(" ", "")
+        if not code.isdigit() or len(code) != 6:
+            return Response({"error": "Invalid code format"}, status=400)
 
         totp = pyotp.TOTP(user.twofa_secret)
 
-        if not totp.verify(code):
+        # Allow small clock drift window (more real-world friendly)
+        if not totp.verify(code, valid_window=1):
             return Response({"error": "Invalid code"}, status=400)
 
         user.is_2fa_enabled = True
-        user.save()
+        user.save(update_fields=["is_2fa_enabled"])
 
         return Response({"message": "2FA enabled successfully"})
 
@@ -469,16 +497,25 @@ class Confirm2FAView(APIView):
 class Verify2FALoginView(APIView):
     def post(self, request):
         user_id = request.data.get("user_id")
-        code = request.data.get("code")
+        code = str(request.data.get("code") or "").strip().replace(" ", "")
+
+        if not code.isdigit() or len(code) != 6:
+            return Response({"error": "Invalid code format"}, status=400)
 
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return Response({"error": "Invalid user"}, status=400)
 
+        if not user.is_active:
+            return Response({"error": "Account blocked"}, status=403)
+
+        if not user.twofa_secret:
+            return Response({"error": "2FA not configured for this user"}, status=400)
+
         totp = pyotp.TOTP(user.twofa_secret)
 
-        if not totp.verify(code):
+        if not totp.verify(code, valid_window=1):
             return Response({"error": "Invalid code"}, status=400)
 
         refresh = RefreshToken.for_user(user)
@@ -508,8 +545,8 @@ class Disable2FAView(APIView):
         user = request.user
 
         user.is_2fa_enabled = False
-        user.two_factor_secret = None
-        user.save()
+        user.twofa_secret = None
+        user.save(update_fields=["is_2fa_enabled", "twofa_secret"])
 
         return Response(
             {"message": "2FA disabled successfully"},
@@ -532,16 +569,15 @@ class MeView(APIView):
                 context={"request": request}
             ).data
 
-        return Response({
-            "email": user.email,
-            "name": user.name,
-            "phone_number": user.phone_number,
-            "role": user.role,
-            "is_driver": hasattr(user, "driver_profile"),
-            "has_applied": hasattr(user, "driver_application"),
-            "is_2fa_enabled": user.is_2fa_enabled,
-            "driver_application": driver_application,
-        })
+        base = UserMeSerializer(user, context={"request": request}).data
+        base.update(
+            {
+                "is_driver": hasattr(user, "driver_profile"),
+                "has_applied": hasattr(user, "driver_application"),
+                "driver_application": driver_application,
+            }
+        )
+        return Response(base, status=status.HTTP_200_OK)
 
 
 class UpdateFCMTokenView(APIView):
@@ -565,7 +601,56 @@ class UpdateFCMTokenView(APIView):
             return Response({'error': 'fcm_token is required'}, status=status.HTTP_400_BAD_REQUEST)
             
         user = request.user
+
+        # Keep the legacy single-token field for compatibility with existing code paths.
         user.fcm_device_token = fcm_token
-        user.save()
+        user.save(update_fields=["fcm_device_token"])
+
+        platform = (request.data.get("platform") or "web").lower()
+        if platform not in {"web", "android", "ios", "unknown"}:
+            platform = "unknown"
+
+        user_agent = request.META.get("HTTP_USER_AGENT")
+
+        # Real-world: allow multiple devices per user and mark the token active.
+        FCMDevice.objects.update_or_create(
+            token=fcm_token,
+            defaults={
+                "user": user,
+                "platform": platform,
+                "user_agent": user_agent,
+                "is_active": True,
+            },
+        )
         
         return Response({'message': 'FCM Token updated successfully'}, status=status.HTTP_200_OK)
+
+
+class NotificationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = Notification.objects.filter(user=request.user).order_by("-created_at")[:50]
+        return Response(NotificationSerializer(qs, many=True).data, status=status.HTTP_200_OK)
+
+    def post(self, request):
+        notification_id = request.data.get("id")
+        now = timezone.now()
+
+        if notification_id:
+            updated = (
+                Notification.objects.filter(user=request.user, id=notification_id, is_read=False)
+                .update(is_read=True, read_at=now)
+            )
+            return Response({"updated": updated}, status=status.HTTP_200_OK)
+
+        # No id => mark all as read
+        updated = (
+            Notification.objects.filter(user=request.user, is_read=False)
+            .update(is_read=True, read_at=now)
+        )
+        return Response({"updated": updated}, status=status.HTTP_200_OK)
+
+    def delete(self, request):
+        deleted, _ = Notification.objects.filter(user=request.user).delete()
+        return Response({"deleted": deleted}, status=status.HTTP_200_OK)

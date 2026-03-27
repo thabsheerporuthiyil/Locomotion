@@ -72,6 +72,23 @@ services:
     networks:
       - app_network
 
+  notification-worker:
+    build: .
+    command: python notification_worker.py
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+    environment:
+      - AWS_REGION=${AWS_REGION:-eu-north-1}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SQS_QUEUE_URL=${AWS_SQS_QUEUE_URL:-https://sqs.eu-north-1.amazonaws.com/471914528467/locomotion-notifications}
+      - FIREBASE_SERVICE_ACCOUNT_PATH=firebase-service-account.json
+    restart: unless-stopped
+    networks:
+      - app_network
+
   qdrant:
     image: qdrant/qdrant
     ports:

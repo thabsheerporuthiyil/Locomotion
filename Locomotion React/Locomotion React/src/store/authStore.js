@@ -1,20 +1,39 @@
 import { create } from "zustand";
 import api from "../api/axios";
 
-export const useAuthStore = create((set, get) => ({
+const normalizeApiError = (err, fallback) => {
+  const data = err?.response?.data;
+  if (typeof data === "string") return data;
+  if (data && typeof data === "object") {
+    return data.error || data.detail || fallback;
+  }
+  return fallback;
+};
+
+const emptyAuthState = {
   access: null,
   role: null,
   name: null,
   email: null,
   isDriver: false,
   hasApplied: false,
-  loading: false,
-  error: null,
   is2FAEnabled: false,
   phoneNumber: null,
   driverApplication: null,
+};
+
+export const useAuthStore = create((set, get) => ({
+  ...emptyAuthState,
+  loading: false,
+  error: null,
 
   setAccess: (access) => set({ access }),
+  clearAuth: (error = null) =>
+    set({
+      ...emptyAuthState,
+      loading: false,
+      error,
+    }),
 
   // ---------------- FETCH ME ----------------
   fetchMe: async () => {
@@ -30,14 +49,20 @@ export const useAuthStore = create((set, get) => ({
         phoneNumber: res.data.phone_number,
         driverApplication: res.data.driver_application || null,
       });
+      return res.data;
     } catch (err) {
       console.error("Me fetch failed", err);
-      get().logout();
+      const statusCode = err?.response?.status;
+      if (statusCode === 401 || statusCode === 403) {
+        get().clearAuth(normalizeApiError(err, "Session expired"));
+      }
+      throw err;
     }
   },
 
   // ---------------- REHYDRATE ----------------
   rehydrateAuth: async () => {
+    const accessAtStart = get().access;
     try {
       const res = await api.post("accounts/token/refresh/");
       set({ access: res.data.access });
@@ -45,17 +70,14 @@ export const useAuthStore = create((set, get) => ({
       await get().fetchMe();
 
       return true;
-    } catch {
-      set({
-        access: null,
-        role: null,
-        name: null,
-        email: null,
-        isDriver: false,
-        hasApplied: false,
-        phoneNumber: null,
-      });
-      return false;
+    } catch (err) {
+      // If a fresh login completed while this old refresh request was still in flight,
+      // do not wipe the newer auth state.
+      if (get().access === accessAtStart) {
+        get().clearAuth();
+        return false;
+      }
+      return true;
     }
   },
 
@@ -93,6 +115,8 @@ export const useAuthStore = create((set, get) => ({
 
       set({
         access: res.data.access,
+        role: res.data.role || null,
+        name: res.data.name || null,
         loading: false,
       });
 
@@ -102,7 +126,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       set({
         loading: false,
-        error: err.response?.data || "Login failed",
+        error: normalizeApiError(err, "Login failed"),
       });
       throw err;
     }
@@ -129,6 +153,8 @@ export const useAuthStore = create((set, get) => ({
 
       set({
         access: res.data.access,
+        role: res.data.role || null,
+        name: res.data.name || null,
         loading: false,
       });
 
@@ -138,7 +164,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       set({
         loading: false,
-        error: err.response?.data || "Google login failed",
+        error: normalizeApiError(err, "Google login failed"),
       });
       throw err;
     }
@@ -161,7 +187,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       set({
         loading: false,
-        error: err.response?.data || "OTP verification failed",
+        error: normalizeApiError(err, "OTP verification failed"),
       });
       throw err;
     }
@@ -177,7 +203,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       set({
         loading: false,
-        error: err.response?.data || "Failed to send OTP",
+        error: normalizeApiError(err, "Failed to send OTP"),
       });
       throw err;
     }
@@ -193,7 +219,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       set({
         loading: false,
-        error: err.response?.data || "Reset password failed",
+        error: normalizeApiError(err, "Reset password failed"),
       });
       throw err;
     }
@@ -206,17 +232,7 @@ export const useAuthStore = create((set, get) => ({
     } catch (err) {
       console.error("Logout error", err);
     } finally {
-      set({
-        access: null,
-        role: null,
-        name: null,
-        email: null,
-        isDriver: false,
-        hasApplied: false,
-        is2FAEnabled: false,
-        phoneNumber: null,
-        driverApplication: null,
-      });
+      get().clearAuth();
     }
   },
 }));

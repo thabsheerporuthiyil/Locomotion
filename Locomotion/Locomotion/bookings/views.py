@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import Notification
 from drivers.permissions import IsActiveDriver
 from drivers.tasks import sync_driver_to_qdrant
 
@@ -263,6 +264,13 @@ class CreateRideRequestView(APIView):
                                 "type": "new_ride",
                             },
                         }
+
+                        Notification.objects.create(
+                            user=driver_profile.user,
+                            title=message_body.get("title") or "Ride Update",
+                            body=message_body.get("body") or "",
+                            data=message_body.get("data") or {},
+                        )
 
                         sqs.send_message(
                             QueueUrl=queue_url, MessageBody=json.dumps(message_body)
@@ -592,6 +600,13 @@ class RideRequestActionView(APIView):
                             },
                         }
 
+                        Notification.objects.create(
+                            user=rider,
+                            title=message_body.get("title") or "Ride Update",
+                            body=message_body.get("body") or "",
+                            data=message_body.get("data") or {},
+                        )
+
                         sqs.send_message(
                             QueueUrl=queue_url, MessageBody=json.dumps(message_body)
                         )
@@ -764,6 +779,18 @@ class SendMessageView(APIView):
                 sender=sender,
                 receiver=receiver,
                 message=message_text,
+            )
+
+            Notification.objects.create(
+                user=receiver,
+                title=f"New Message from {'Rider' if is_rider else 'Driver'}",
+                body=message_text,
+                data={
+                    "ride_id": str(ride.id), # type: ignore
+                    "type": "chat_message",
+                    "message_id": str(chat_message.id), # type: ignore
+                    "sender_name": sender.name,
+                },
             )
 
             # --- Push Notification via AWS SQS ---

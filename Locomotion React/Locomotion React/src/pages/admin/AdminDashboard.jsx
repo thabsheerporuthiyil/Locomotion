@@ -1,421 +1,237 @@
-import { useAuthStore } from "../../store/authStore";
-import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { createElement, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { Car, FileText, RefreshCw, Users } from "lucide-react";
 import api from "../../api/axios";
 
+const DASHBOARD_CACHE_KEY = "admin_dashboard_cache_v1";
+
+function StatCard({ icon, label, value, tone = "indigo" }) {
+  const tones = {
+    indigo: "bg-indigo-50 text-indigo-700 ring-indigo-100",
+    amber: "bg-amber-50 text-amber-700 ring-amber-100",
+    emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center justify-between">
+      <div>
+        <div className="text-xs font-bold tracking-widest text-slate-500 uppercase">
+          {label}
+        </div>
+        <div className="text-3xl font-black text-slate-900 mt-2">
+          {value === null || value === undefined ? (
+            <div className="h-8 w-16 rounded-lg bg-slate-100 animate-pulse" />
+          ) : (
+            value
+          )}
+        </div>
+      </div>
+      <div
+        className={`w-12 h-12 rounded-2xl ring-1 flex items-center justify-center ${tones[tone]}`}
+      >
+        {icon ? createElement(icon, { size: 20 }) : null}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
-  const { logout, name } = useAuthStore();
-  const navigate = useNavigate();
-
-  const [activeTab, setActiveTab] = useState("dashboard");
   const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(null);
-
-  const [rejectingId, setRejectingId] = useState(null);
-  const [rejectReason, setRejectReason] = useState("");
-
-  const handleLogout = async () => {
-    await logout();
-    navigate("/");
-  };
-
-  /* =========================
-     LOAD DATA
-  ========================== */
   const [vehicles, setVehicles] = useState([]);
+  const [stats, setStats] = useState({
+    users_total: null,
+    drivers_total: null,
+    drivers_active: null,
+    pending_driver_applications: null,
+    pending_vehicle_requests: null,
+  });
 
-  const refreshApplications = async () => {
-    try {
-      const res = await api.get("drivers/admin/applications/");
-      setApplications(res.data);
-    } catch (err) {
-      console.error(err);
-    }
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const applyDashboardPayload = (payload) => {
+    if (!payload) return;
+    setStats(
+      payload.stats || {
+        users_total: 0,
+        drivers_total: 0,
+        drivers_active: 0,
+        pending_driver_applications: 0,
+        pending_vehicle_requests: 0,
+      },
+    );
+    setApplications(payload.recent_driver_applications || []);
+    setVehicles(payload.recent_vehicle_requests || []);
   };
 
-  const refreshVehicles = async () => {
+  const refresh = async ({ force = false } = {}) => {
+    setLoading(true);
+    setError(null);
     try {
-      const res = await api.get("drivers/admin/vehicles/");
-      setVehicles(res.data);
-    } catch (err) {
-      console.error(err);
+      const res = await api.get("drivers/admin/dashboard/", {
+        params: force ? { force: 1 } : undefined,
+      });
+      applyDashboardPayload(res.data);
+      localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(res.data));
+    } catch (e) {
+      setError("Failed to load admin data. Please refresh.");
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setInitialLoading(false);
     }
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      if (activeTab === "drivers") {
-        await refreshApplications();
-      } else if (activeTab === "vehicles") {
-        await refreshVehicles();
+    try {
+      const cachedRaw = localStorage.getItem(DASHBOARD_CACHE_KEY);
+      if (cachedRaw) {
+        const cached = JSON.parse(cachedRaw);
+        applyDashboardPayload(cached);
+        setInitialLoading(false);
       }
-      setLoading(false);
-    };
-    fetchData();
-  }, [activeTab]);
-
-  /* =========================
-     HANDLERS
-  ========================== */
-  const handleApprove = async (id) => {
-    try {
-      setActionLoading(id);
-      await api.post(`drivers/admin/applications/${id}/action/`, {
-        action: "approve",
-      });
-      await refreshApplications();
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setActionLoading(null);
+    } catch {
+      // ignore
     }
-  };
 
-  const handleVehicleAction = async (id, action) => {
-    try {
-      setActionLoading(id);
-      await api.post(`drivers/admin/vehicles/${id}/action/`, {
-        action,
-      });
-      await refreshVehicles();
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setActionLoading(null);
-    }
-  };
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const confirmReject = async () => {
-    if (!rejectReason) return;
-
-    try {
-      setActionLoading(rejectingId);
-      await api.post(
-        `drivers/admin/applications/${rejectingId}/action/`,
-        { action: "reject", reason: rejectReason }
-      );
-
-      setRejectingId(null);
-      setRejectReason("");
-      await refreshApplications();
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setActionLoading(null);
-    }
-  };
+  const pendingApps = useMemo(
+    () => applications.filter((a) => !a.status || a.status === "pending"),
+    [applications],
+  );
+  const pendingVehicles = useMemo(
+    () => vehicles.filter((v) => !v.status || v.status === "pending"),
+    [vehicles],
+  );
 
   return (
-    <div className="flex h-screen w-screen bg-slate-50 overflow-hidden">
-
-      {/* Sidebar */}
-      <aside className="w-64 bg-indigo-900 text-white flex flex-col shadow-xl">
-        <div className="p-8">
-          <h2 className="text-2xl font-extrabold tracking-tight">
-            LOCO <span className="text-indigo-400">ADMIN</span>
-          </h2>
-        </div>
-
-        <nav className="flex-1 px-4 space-y-2">
-          <button
-            onClick={() => setActiveTab("dashboard")}
-            className={`w-full p-3 rounded-xl text-left font-semibold transition ${activeTab === "dashboard"
-              ? "bg-indigo-800"
-              : "hover:bg-indigo-800 text-indigo-200 hover:text-white"
-              }`}
-          >
-            Dashboard
-          </button>
-
-          <button
-            onClick={() => setActiveTab("drivers")}
-            className={`w-full p-3 rounded-xl text-left font-semibold transition ${activeTab === "drivers"
-              ? "bg-indigo-800"
-              : "hover:bg-indigo-800 text-indigo-200 hover:text-white"
-              }`}
-          >
-            Driver Applications
-          </button>
-
-          <button
-            onClick={() => setActiveTab("vehicles")}
-            className={`w-full p-3 rounded-xl text-left font-semibold transition ${activeTab === "vehicles"
-              ? "bg-indigo-800"
-              : "hover:bg-indigo-800 text-indigo-200 hover:text-white"
-              }`}
-          >
-            Vehicle Requests
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-indigo-800">
-          <button
-            onClick={handleLogout}
-            className="w-full bg-indigo-800 hover:bg-rose-600 p-3 rounded-xl font-bold transition"
-          >
-            Logout
-          </button>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-y-auto">
-
-        <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center">
-          <h1 className="text-xl font-bold text-slate-800 capitalize">
-            {activeTab}
-          </h1>
-          <span className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-sm font-bold uppercase">
-            {name || "Admin"}
-          </span>
-        </header>
-
-        <div className="p-8">
-
-          {/* Dashboard */}
-          {activeTab === "dashboard" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-8">
-              <h2 className="text-xl font-bold text-slate-800">
-                Welcome to Admin Panel
-              </h2>
-              <p className="text-slate-500 mt-2">
-                Manage driver applications from sidebar.
-              </p>
-            </div>
-          )}
-
-          {/* Driver Applications */}
-          {activeTab === "drivers" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-
-              {loading ? (
-                <p className="text-slate-500">Loading applications...</p>
-              ) : applications.length === 0 ? (
-                <p className="text-slate-500">No applications found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  {/* ... (existing applications table) ... */}
-                  <table className="w-full text-sm">
-                    <thead className="border-b text-left">
-                      <tr>
-                        <th className="py-3">Email</th>
-                        <th>Phone</th>
-                        <th>Service</th>
-                        <th>Vehicle</th>
-                        <th>Location</th>
-                        <th>Documents</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {applications.map(app => (
-                        <tr key={app.id} className="border-b hover:bg-slate-50">
-                          <td className="py-3">{app.email}</td>
-                          <td>{app.phone_number}</td>
-                          <td className="capitalize">{app.service_type}</td>
-
-                          <td>
-                            {app.vehicle_model_name ||
-                              app.vehicle_category_name ||
-                              "-"}
-                          </td>
-
-                          <td>
-                            {app.panchayath_name}, {app.taluk_name}, {app.district_name}
-                          </td>
-
-                          <td>
-                            <div className="flex flex-col space-y-1 text-xs">
-                              {app.license_document && (
-                                <a href={app.license_document} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
-                                  License
-                                </a>
-                              )}
-                              {app.rc_document && (
-                                <a href={app.rc_document} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
-                                  RC
-                                </a>
-                              )}
-                              {app.insurance_document && (
-                                <a href={app.insurance_document} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
-                                  Insurance
-                                </a>
-                              )}
-                              {app.vehicle_image && (
-                                <a href={app.vehicle_image} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
-                                  Vehicle Img
-                                </a>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Status Badge */}
-                          <td>
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${app.status === "approved"
-                              ? "bg-green-100 text-green-700"
-                              : app.status === "rejected"
-                                ? "bg-rose-100 text-rose-700"
-                                : "bg-yellow-100 text-yellow-700"
-                              }`}>
-                              {app.status}
-                            </span>
-                          </td>
-
-                          <td className="space-x-2">
-                            {app.status === "pending" && (
-                              <>
-                                <button
-                                  disabled={actionLoading === app.id}
-                                  onClick={() => handleApprove(app.id)}
-                                  className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
-                                >
-                                  Approve
-                                </button>
-
-                                <button
-                                  disabled={actionLoading === app.id}
-                                  onClick={() => setRejectingId(app.id)}
-                                  className="bg-rose-600 text-white px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Vehicle Requests */}
-          {activeTab === "vehicles" && (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-              {loading ? (
-                <p className="text-slate-500">Loading vehicles...</p>
-              ) : vehicles.length === 0 ? (
-                <p className="text-slate-500">No pending vehicles found.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="border-b text-left">
-                      <tr>
-                        <th className="py-3">Vehicle</th>
-                        <th>Category</th>
-                        <th>Reg Number</th>
-                        <th>Documents</th>
-                        <th>Status</th>
-                        <th>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {vehicles.map(vehicle => (
-                        <tr key={vehicle.id} className="border-b hover:bg-slate-50">
-                          <td className="py-3">
-                            <div className="font-semibold">{vehicle.vehicle_brand_name} {vehicle.vehicle_model_name}</div>
-                          </td>
-                          <td>{vehicle.vehicle_category_name}</td>
-                          <td className="font-mono">{vehicle.registration_number}</td>
-                          <td>
-                            <div className="flex flex-col space-y-1 text-xs">
-                              {vehicle.rc_document && (
-                                <a href={vehicle.rc_document} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
-                                  RC
-                                </a>
-                              )}
-                              {vehicle.insurance_document && (
-                                <a href={vehicle.insurance_document} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
-                                  Insurance
-                                </a>
-                              )}
-                              {vehicle.vehicle_image && (
-                                <a href={vehicle.vehicle_image} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline">
-                                  Photo
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                          <td>
-                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${vehicle.status === "approved" ? "bg-green-100 text-green-700" :
-                              vehicle.status === "rejected" ? "bg-rose-100 text-rose-700" :
-                                "bg-yellow-100 text-yellow-700"
-                              }`}>
-                              {vehicle.status}
-                            </span>
-                          </td>
-                          <td className="space-x-2">
-                            {vehicle.status === "pending" && (
-                              <>
-                                <button
-                                  disabled={actionLoading === vehicle.id}
-                                  onClick={() => handleVehicleAction(vehicle.id, 'approve')}
-                                  className="bg-green-600 text-white px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  disabled={actionLoading === vehicle.id}
-                                  onClick={() => handleVehicleAction(vehicle.id, 'reject')}
-                                  className="bg-rose-600 text-white px-3 py-1 rounded-lg text-xs font-semibold disabled:opacity-50"
-                                >
-                                  Reject
-                                </button>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )}
-
-        </div>
-      </main>
-
-      {/* Reject Modal */}
-      {rejectingId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-          <div className="bg-white p-6 rounded-xl w-96 space-y-4">
-            <h3 className="font-bold text-lg">Reject Application</h3>
-
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full border rounded-lg p-2"
-              placeholder="Enter rejection reason..."
-            />
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setRejectingId(null);
-                  setRejectReason("");
-                }}
-                className="px-3 py-1 bg-gray-200 rounded"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={confirmReject}
-                className="px-3 py-1 bg-rose-600 text-white rounded"
-              >
-                Confirm Reject
-              </button>
-            </div>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm text-slate-500">
+            Review pending items and take action quickly.
           </div>
         </div>
+        <button
+          onClick={() => refresh({ force: true })}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition disabled:opacity-60"
+          disabled={loading}
+        >
+          <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+          Refresh
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 font-semibold">
+          {error}
+        </div>
       )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <StatCard icon={Users} label="Total Users" value={stats.users_total} tone="indigo" />
+        <StatCard
+          icon={Users}
+          label="Total Drivers"
+          value={stats.drivers_total}
+          tone="emerald"
+        />
+        <StatCard
+          icon={FileText}
+          label="Pending Driver Applications"
+          value={stats.pending_driver_applications}
+          tone="amber"
+        />
+        <StatCard
+          icon={Car}
+          label="Pending Vehicle Requests"
+          value={stats.pending_vehicle_requests}
+          tone="indigo"
+        />
+        <StatCard
+          icon={RefreshCw}
+          label="Total Pending Actions"
+          value={
+            stats.pending_driver_applications === null ||
+            stats.pending_vehicle_requests === null
+              ? null
+              : stats.pending_driver_applications + stats.pending_vehicle_requests
+          }
+          tone="emerald"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+            <div className="font-black text-slate-900">Recent Driver Applications</div>
+            <Link to="/admin/drivers" className="text-sm font-bold text-indigo-700 hover:text-indigo-800">
+              View all
+            </Link>
+          </div>
+
+          {initialLoading ? (
+            <div className="p-5 text-slate-500">Loading...</div>
+          ) : pendingApps.length === 0 ? (
+            <div className="p-5 text-slate-500">No pending applications.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {pendingApps.map((app) => (
+                <div key={app.id} className="p-5 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 truncate">{app.email}</div>
+                    <div className="text-sm text-slate-500 truncate">
+                      {app.panchayath_name}, {app.taluk_name}, {app.district_name}
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-700 ring-1 ring-amber-100 shrink-0">
+                    pending
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-slate-200 flex items-center justify-between">
+            <div className="font-black text-slate-900">Recent Vehicle Requests</div>
+            <Link to="/admin/vehicles" className="text-sm font-bold text-indigo-700 hover:text-indigo-800">
+              View all
+            </Link>
+          </div>
+
+          {initialLoading ? (
+            <div className="p-5 text-slate-500">Loading...</div>
+          ) : pendingVehicles.length === 0 ? (
+            <div className="p-5 text-slate-500">No pending vehicles.</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {pendingVehicles.map((v) => (
+                <div key={v.id} className="p-5 flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900 truncate">
+                      {v.vehicle_brand_name} {v.vehicle_model_name}
+                    </div>
+                    <div className="text-sm text-slate-500 truncate">
+                      {v.vehicle_category_name} •{" "}
+                      <span className="font-mono">{v.registration_number}</span>
+                    </div>
+                  </div>
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100 shrink-0">
+                    pending
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
+

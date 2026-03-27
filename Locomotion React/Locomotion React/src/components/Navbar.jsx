@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "../store/authStore";
 import { Menu, X, Rocket } from "lucide-react";
+import NotificationBell from "./NotificationBell";
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -104,11 +105,13 @@ export default function Navbar() {
                   <NavLink to="/admin/dashboard">Admin Panel</NavLink>
                 )}
 
+                <NotificationBell />
+
                 {/* Profile Icon with Dropdown */}
                 <div className="relative ml-4" ref={profileRef}>
                   <button
                     onClick={() => setIsProfileOpen(!isProfileOpen)}
-                    className="w-11 h-11 rounded-full bg-indigo-50 border-2 border-indigo-100 text-indigo-600 font-bold flex items-center justify-center hover:bg-indigo-100 hover:border-indigo-200 transition-all shadow-sm"
+                    className="w-11 h-11 rounded-full bg-indigo-50 border-2 border-indigo-100 text-indigo-600 font-bold flex items-center justify-center hover:bg-indigo-100 hover:border-indigo-200 transition-all shadow-sm overflow-hidden"
                   >
                     {firstLetter}
                   </button>
@@ -152,12 +155,15 @@ export default function Navbar() {
           </div>
 
           {/* Mobile menu button */}
-          <button
-            onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
-          >
-            {isOpen ? <X size={28} /> : <Menu size={28} />}
-          </button>
+          <div className="md:hidden flex items-center gap-2">
+            {access ? <NotificationBell /> : null}
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="p-2 rounded-lg text-slate-600 hover:text-indigo-600 hover:bg-slate-100 transition-colors"
+            >
+              {isOpen ? <X size={28} /> : <Menu size={28} />}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -170,7 +176,7 @@ export default function Navbar() {
                 {/* Mobile Profile Section */}
                 <div className="py-4 border-b border-slate-100 mb-2">
                   <div className="flex items-center space-x-4 px-2">
-                    <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 font-bold flex items-center justify-center">
+                    <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-600 font-bold flex items-center justify-center overflow-hidden">
                       {firstLetter}
                     </div>
                     <div>

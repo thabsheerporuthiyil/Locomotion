@@ -1,5 +1,7 @@
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
+from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from rest_framework import status
 from rest_framework.permissions import IsAdminUser
 from rest_framework.response import Response
@@ -7,7 +9,7 @@ from rest_framework.views import APIView
 
 from .models import (DriverApplication, DriverApplicationReview, DriverProfile,
                      DriverVehicle)
-from .serializers import DriverApplicationSerializer
+from .serializers import DriverApplicationSerializer, DriverVehicleSerializer
 from .tasks import sync_driver_to_qdrant
 
 
@@ -20,6 +22,19 @@ class AdminDriverApplicationListView(APIView):
     )
     def get(self, request):
         applications = DriverApplication.objects.all().order_by("-submitted_at")
+
+        status_filter = request.query_params.get("status")
+        if status_filter in ["pending", "approved", "rejected"]:
+            applications = applications.filter(status=status_filter)
+
+        raw_limit = request.query_params.get("limit")
+        if raw_limit:
+            try:
+                limit = max(1, min(200, int(raw_limit)))
+                applications = applications[:limit]
+            except ValueError:
+                pass
+
         serializer = DriverApplicationSerializer(
             applications, many=True, context={"request": request}
         )
@@ -111,9 +126,6 @@ class AdminDriverApplicationActionView(APIView):
         return Response({"message": f"Application {application.status}"})
 
 
-from .serializers import DriverVehicleSerializer
-
-
 class AdminVehicleListView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -123,6 +135,19 @@ class AdminVehicleListView(APIView):
     )
     def get(self, request):
         vehicles = DriverVehicle.objects.all().order_by("-created_at")
+
+        status_filter = request.query_params.get("status")
+        if status_filter in ["pending", "approved", "rejected"]:
+            vehicles = vehicles.filter(status=status_filter)
+
+        raw_limit = request.query_params.get("limit")
+        if raw_limit:
+            try:
+                limit = max(1, min(200, int(raw_limit)))
+                vehicles = vehicles[:limit]
+            except ValueError:
+                pass
+
         serializer = DriverVehicleSerializer(
             vehicles, many=True, context={"request": request}
         )
@@ -177,3 +202,136 @@ class AdminVehicleActionView(APIView):
             sync_driver_to_qdrant.delay(vehicle.driver.id)
 
         return Response({"message": f"Vehicle {vehicle.status}"})
+
+
+class AdminStatsView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @swagger_auto_schema(
+        operation_description="Admin dashboard stats (counts only)",
+        responses={
+            200: openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    "users_total": openapi.Schema(type=openapi.TYPE_INTEGER),
+                    "drivers_total": openapi.Schema(type=openapi.TYPE_INTEGER),
+                    "drivers_active": openapi.Schema(type=openapi.TYPE_INTEGER),
+                    "pending_driver_applications": openapi.Schema(type=openapi.TYPE_INTEGER),
+                    "pending_vehicle_requests": openapi.Schema(type=openapi.TYPE_INTEGER),
+                },
+            )
+        },
+    )
+    def get(self, request):
+        User = get_user_model()
+        users_total = User.objects.count()
+        drivers_total = DriverProfile.objects.count()
+        drivers_active = DriverProfile.objects.filter(is_active=True).count()
+        pending_driver_applications = DriverApplication.objects.filter(status="pending").count()
+        pending_vehicle_requests = DriverVehicle.objects.filter(status="pending").count()
+
+        return Response(
+            {
+                "users_total": users_total,
+                "drivers_total": drivers_total,
+                "drivers_active": drivers_active,
+                "pending_driver_applications": pending_driver_applications,
+                "pending_vehicle_requests": pending_vehicle_requests,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AdminDashboardView(APIView):
+    permission_classes = [IsAdminUser]
+
+    @swagger_auto_schema(
+        operation_description="Admin dashboard payload (counts + recent pending items).",
+        manual_parameters=[
+            openapi.Parameter(
+                "force",
+                openapi.IN_QUERY,
+                description="Set to 1 to bypass cache",
+                type=openapi.TYPE_INTEGER,
+            )
+        ],
+    )
+    def get(self, request):
+        force = str(request.query_params.get("force") or "0") == "1"
+        cache_key = "admin_dashboard_v1"
+
+        if not force:
+            cached = cache.get(cache_key)
+            if cached:
+                return Response(cached, status=status.HTTP_200_OK)
+
+        User = get_user_model()
+
+        users_total = User.objects.count()
+        drivers_total = DriverProfile.objects.count()
+        drivers_active = DriverProfile.objects.filter(is_active=True).count()
+        pending_driver_applications = DriverApplication.objects.filter(status="pending").count()
+        pending_vehicle_requests = DriverVehicle.objects.filter(status="pending").count()
+
+        recent_apps_qs = (
+            DriverApplication.objects.filter(status="pending")
+            .select_related(
+                "user",
+                "panchayath",
+                "panchayath__taluk",
+                "panchayath__taluk__district",
+            )
+            .order_by("-submitted_at")[:5]
+        )
+        recent_apps = [
+            {
+                "id": a.id,
+                "status": a.status,
+                "email": a.user.email,
+                "phone_number": a.phone_number,
+                "service_type": a.service_type,
+                "panchayath_name": a.panchayath.name,
+                "taluk_name": a.panchayath.taluk.name,
+                "district_name": a.panchayath.taluk.district.name,
+                "submitted_at": a.submitted_at.isoformat() if a.submitted_at else None,
+            }
+            for a in recent_apps_qs
+        ]
+
+        recent_vehicles_qs = (
+            DriverVehicle.objects.filter(status="pending")
+            .select_related(
+                "driver__user",
+                "vehicle_model",
+                "vehicle_model__brand",
+                "vehicle_category",
+            )
+            .order_by("-created_at")[:5]
+        )
+        recent_vehicles = [
+            {
+                "id": v.id,
+                "status": v.status,
+                "vehicle_brand_name": v.vehicle_model.brand.name,
+                "vehicle_model_name": v.vehicle_model.name,
+                "vehicle_category_name": v.vehicle_category.name,
+                "registration_number": v.registration_number,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+            }
+            for v in recent_vehicles_qs
+        ]
+
+        payload = {
+            "stats": {
+                "users_total": users_total,
+                "drivers_total": drivers_total,
+                "drivers_active": drivers_active,
+                "pending_driver_applications": pending_driver_applications,
+                "pending_vehicle_requests": pending_vehicle_requests,
+            },
+            "recent_driver_applications": recent_apps,
+            "recent_vehicle_requests": recent_vehicles,
+        }
+
+        cache.set(cache_key, payload, timeout=10)
+        return Response(payload, status=status.HTTP_200_OK)

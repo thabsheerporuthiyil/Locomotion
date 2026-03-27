@@ -4,8 +4,10 @@ from .views import (Confirm2FAView, CookieTokenRefreshView,
                     CustomTokenObtainPairView, Disable2FAView,
                     ForgotPasswordSendOTPView, GoogleLoginView, LogoutView,
                     MeView, RegisterView, ResetPasswordView, SendOTPView,
+                    NotificationsView,
                     Setup2FAView, UpdateFCMTokenView, Verify2FALoginView,
                     VerifyOTPView)
+from .admin_views import AdminUserBlockView, AdminUserListView
 
 urlpatterns = [
     # Registration & OTP
@@ -28,4 +30,8 @@ urlpatterns = [
     path("2fa/verify-login/", Verify2FALoginView.as_view(), name="2fa-verify-login"),
     path("2fa/disable/", Disable2FAView.as_view(), name="disable-2fa"),
     path("update-fcm-token/", UpdateFCMTokenView.as_view(), name="update-fcm-token"),
+    path("notifications/", NotificationsView.as_view(), name="notifications"),
+    # Admin
+    path("admin/users/", AdminUserListView.as_view(), name="admin-users"),
+    path("admin/users/<int:pk>/block/", AdminUserBlockView.as_view(), name="admin-user-block"),
 ]

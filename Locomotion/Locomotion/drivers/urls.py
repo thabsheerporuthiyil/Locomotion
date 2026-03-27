@@ -2,6 +2,7 @@ from django.urls import path
 
 from .admin_views import (AdminDriverApplicationActionView,
                           AdminDriverApplicationListView,
+                          AdminDashboardView, AdminStatsView,
                           AdminVehicleActionView, AdminVehicleListView)
 from .views import (ApplyDriverView, DriverAvailabilityView,
                     DriverCoachApplyView, DriverCoachPlanView,
@@ -10,6 +11,8 @@ from .views import (ApplyDriverView, DriverAvailabilityView,
 
 urlpatterns = [
     path("apply/", ApplyDriverView.as_view()),
+    path("admin/stats/", AdminStatsView.as_view()),
+    path("admin/dashboard/", AdminDashboardView.as_view()),
     path("admin/applications/", AdminDriverApplicationListView.as_view()),
     path(
         "admin/applications/<int:pk>/action/",

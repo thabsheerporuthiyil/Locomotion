@@ -13,7 +13,7 @@ if ("serviceWorker" in navigator) {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId="1068487642544-la6amm7hgtjo6bkr69lv27ajn28c0ruc.apps.googleusercontent.com">
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
       <BrowserRouter>
         <App />
       </BrowserRouter>

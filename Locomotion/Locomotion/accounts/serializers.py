@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import User
+from .models import Notification, User
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -39,3 +39,21 @@ class ResetPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
     otp = serializers.CharField()
     new_password = serializers.CharField(min_length=8)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ["id", "title", "body", "data", "is_read", "created_at", "read_at"]
+
+
+class UserMeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "email",
+            "name",
+            "phone_number",
+            "role",
+            "is_2fa_enabled",
+        ]

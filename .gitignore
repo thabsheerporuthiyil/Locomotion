@@ -1,0 +1,12 @@
+# Monorepo-wide local secrets / generated files
+Locomotion/Locomotion/firebase-service-account.json
+Locomotion/Locomotion/.env
+Locomotion React/Locomotion React/.env
+
+# Runtime/generated files
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+celerybeat-schedule
+Locomotion/Locomotion/celerybeat-schedule
