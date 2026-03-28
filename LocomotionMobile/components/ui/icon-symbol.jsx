@@ -10,8 +10,17 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 const MAPPING = {
   'house.fill': 'home',
   'paperplane.fill': 'send',
+  'phone.fill': 'phone',
+  'arrow.clockwise': 'refresh',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'chevron.left': 'chevron-left',
+  xmark: 'close',
+  'person.circle.fill': 'logout',
+  'person.fill': 'person',
+  'car.fill': 'directions-car',
+  'bubble.left.and.bubble.right.fill': 'forum',
+  'antenna.radiowaves.left.and.right': 'wifi-tethering',
 };
 
 /**
@@ -25,5 +34,12 @@ export function IconSymbol({
   color,
   style,
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+  return (
+    <MaterialIcons
+      color={color}
+      size={size}
+      name={MAPPING[name] || 'help-outline'}
+      style={style}
+    />
+  );
 }

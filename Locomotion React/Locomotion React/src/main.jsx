@@ -8,6 +8,7 @@ if ("serviceWorker" in navigator) {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || "";
   navigator.serviceWorker.register(
     `/firebase-messaging-sw.js?apiKey=${encodeURIComponent(apiKey)}`,
+    { updateViaCache: "none" },
   );
 }
 

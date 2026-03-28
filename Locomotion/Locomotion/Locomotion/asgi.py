@@ -16,11 +16,11 @@ from django.core.asgi import get_asgi_application
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "Locomotion.settings")
 
 # Use lazy loading for routing to avoid AppRegistryNotReady error
-from location.routing import websocket_urlpatterns
+from location.routing import websocket_urlpatterns as location_websocket_urlpatterns
 
 application = ProtocolTypeRouter(
     {
         "http": get_asgi_application(),
-        "websocket": AuthMiddlewareStack(URLRouter(websocket_urlpatterns)),
+        "websocket": AuthMiddlewareStack(URLRouter(location_websocket_urlpatterns)),
     }
 )

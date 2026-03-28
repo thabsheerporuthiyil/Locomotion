@@ -328,6 +328,17 @@ else:
     MEDIA_ROOT = os.environ.get("MEDIA_ROOT", os.path.join(BASE_DIR, "media"))
 
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_ANDROID_CLIENT_ID = os.environ.get("GOOGLE_ANDROID_CLIENT_ID", "")
+GOOGLE_IOS_CLIENT_ID = os.environ.get("GOOGLE_IOS_CLIENT_ID", "")
+GOOGLE_ALLOWED_CLIENT_IDS = [
+    client_id
+    for client_id in {
+        GOOGLE_CLIENT_ID,
+        GOOGLE_ANDROID_CLIENT_ID,
+        GOOGLE_IOS_CLIENT_ID,
+    }
+    if client_id
+]
 
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 

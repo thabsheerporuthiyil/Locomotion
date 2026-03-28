@@ -41,6 +41,51 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 
+def _issue_auth_response(user, role=None, extra_payload=None):
+    refresh = RefreshToken.for_user(user)
+    payload = {
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "role": role or user.role,
+        "name": user.name,
+    }
+    if extra_payload:
+        payload.update(extra_payload)
+
+    response = Response(payload)
+    response.set_cookie(
+        key="refresh",
+        value=str(refresh),
+        httponly=True,
+        secure=settings.SESSION_COOKIE_SECURE,
+        samesite="Lax",
+    )
+    return response
+
+
+def _verify_google_identity_token(token):
+    allowed_client_ids = getattr(settings, "GOOGLE_ALLOWED_CLIENT_IDS", None) or None
+    return id_token.verify_oauth2_token(
+        token,
+        requests.Request(),
+        allowed_client_ids,
+    )
+
+
+def _get_driver_access_error(user):
+    if not user.is_active:
+        return "Account blocked"
+
+    driver_profile = getattr(user, "driver_profile", None)
+    if not driver_profile:
+        return "Only approved drivers can sign in to the driver app."
+
+    if not driver_profile.is_active:
+        return "Driver account is inactive. Contact support."
+
+    return None
+
+
 class RegisterView(APIView):
     @swagger_auto_schema(
         request_body=RegisterSerializer,
@@ -219,24 +264,46 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 status=200
             )
 
-        refresh = RefreshToken.for_user(user)
-
-        response = Response({
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-            "role": "admin" if user.is_staff else "customer",
-            "name": user.name,
-        })
-
-        response.set_cookie(
-            key="refresh",
-            value=str(refresh),
-            httponly=True,
-            secure=False,
-            samesite="Lax",
+        return _issue_auth_response(
+            user,
+            role="admin" if user.is_staff else "customer",
         )
 
-        return response
+
+class DriverMobileLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get("email")
+        password = request.data.get("password")
+
+        user = User.objects.filter(email=email).first()
+
+        if not user or not user.check_password(password):
+            return Response({"error": "Invalid credentials"}, status=401)
+
+        driver_error = _get_driver_access_error(user)
+        if driver_error:
+            return Response({"error": driver_error}, status=403)
+
+        if not user.is_verified:
+            return Response({"error": "Email not verified"}, status=403)
+
+        if user.is_2fa_enabled:
+            return Response(
+                {
+                    "otp_required": True,
+                    "type": "totp",
+                    "user_id": user.id,
+                },
+                status=200,
+            )
+
+        return _issue_auth_response(
+            user,
+            role="driver",
+            extra_payload={"is_driver": True},
+        )
 
 
 class CookieTokenRefreshView(APIView):
@@ -374,12 +441,7 @@ class GoogleLoginView(APIView):
             return Response({"error": "No token provided"}, status=400)
 
         try:
-            # Verify token with Google
-            idinfo = id_token.verify_oauth2_token(
-                token,
-                requests.Request(),
-                settings.GOOGLE_CLIENT_ID
-            )
+            idinfo = _verify_google_identity_token(token)
 
             email = idinfo.get("email")
             name = idinfo.get("name")
@@ -416,25 +478,57 @@ class GoogleLoginView(APIView):
                 status=200
             )
 
-        # Generate JWT
-        refresh = RefreshToken.for_user(user)
+        return _issue_auth_response(user, role=user.role)
 
-        response = Response({
-            "access": str(refresh.access_token),
-            "refresh": str(refresh),
-            "role": user.role,
-            "name": user.name,
-        })
 
-        response.set_cookie(
-            key="refresh",
-            value=str(refresh),
-            httponly=True,
-            secure=False,
-            samesite="Lax",
+class DriverMobileGoogleLoginView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        token = request.data.get("token")
+
+        if not token:
+            return Response({"error": "No token provided"}, status=400)
+
+        try:
+            idinfo = _verify_google_identity_token(token)
+            email = idinfo.get("email")
+
+            if not email:
+                return Response({"error": "Email not available"}, status=400)
+        except ValueError:
+            return Response({"error": "Invalid Google token"}, status=400)
+
+        user = User.objects.filter(email=email).first()
+        if not user:
+            return Response(
+                {"error": "Only approved drivers can sign in to the driver app."},
+                status=403,
+            )
+
+        driver_error = _get_driver_access_error(user)
+        if driver_error:
+            return Response({"error": driver_error}, status=403)
+
+        if not user.is_verified:
+            user.is_verified = True
+            user.save(update_fields=["is_verified"])
+
+        if user.is_2fa_enabled:
+            return Response(
+                {
+                    "otp_required": True,
+                    "type": "totp",
+                    "user_id": user.id,
+                },
+                status=200,
+            )
+
+        return _issue_auth_response(
+            user,
+            role="driver",
+            extra_payload={"is_driver": True},
         )
-
-        return response
     
 class Setup2FAView(APIView):
     permission_classes = [IsAuthenticated]

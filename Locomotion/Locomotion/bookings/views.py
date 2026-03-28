@@ -21,6 +21,23 @@ from .models import RideRequest
 from .serializers import (RideRatingSerializer, RideRequestCreateSerializer, RideRequestSerializer)
 
 
+def _get_active_fcm_tokens(user):
+    if not user:
+        return []
+
+    tokens = list(
+        user.fcm_devices.filter(is_active=True)
+        .values_list("token", flat=True)
+        .distinct()
+    )
+
+    legacy_token = getattr(user, "fcm_device_token", None)
+    if legacy_token and legacy_token not in tokens:
+        tokens.append(legacy_token)
+
+    return [token for token in tokens if token]
+
+
 class CalculateFareView(APIView):
     @swagger_auto_schema(
         operation_description="Calculate estimated fare for a ride",
@@ -237,11 +254,8 @@ class CreateRideRequestView(APIView):
 
             # --- Push Notification via AWS SQS ---
             driver_profile = ride_request.driver # type: ignore
-            if (
-                driver_profile
-                and hasattr(driver_profile, "user")
-                and driver_profile.user.fcm_device_token
-            ):
+            if driver_profile and hasattr(driver_profile, "user"):
+                tokens = _get_active_fcm_tokens(driver_profile.user)
                 try:
                     sqs = boto3.client(
                         "sqs",
@@ -254,9 +268,9 @@ class CreateRideRequestView(APIView):
 
                     queue_url = getattr(settings, "AWS_SQS_QUEUE_URL", None)
 
-                    if queue_url:
+                    if queue_url and tokens:
                         message_body = {
-                            "fcm_token": driver_profile.user.fcm_device_token,
+                            "fcm_token": tokens[0],
                             "title": "New Ride Request! 🚗",
                             "body": f"From: {ride_request.source_location} To: {ride_request.destination_location}", # type: ignore
                             "data": {
@@ -272,11 +286,14 @@ class CreateRideRequestView(APIView):
                             data=message_body.get("data") or {},
                         )
 
-                        sqs.send_message(
-                            QueueUrl=queue_url, MessageBody=json.dumps(message_body)
-                        )
+                        for token in tokens:
+                            message_body["fcm_token"] = token
+                            sqs.send_message(
+                                QueueUrl=queue_url, MessageBody=json.dumps(message_body)
+                            )
                         print(
-                            f"Successfully pushed notification to SQS for driver {driver_profile.user.email}"
+                            "Successfully pushed notification to SQS for "
+                            f"{len(tokens)} device(s) for driver {driver_profile.user.email}"
                         )
                 except Exception as e:
                     print(f"Failed to send SQS notification: {e}")
@@ -559,7 +576,8 @@ class RideRequestActionView(APIView):
         # Only notify for statuses that the rider cares about in real-time
         if action in ["accept", "arrive", "start_trip", "complete", "cancel"]:
             rider = ride_request.rider
-            if rider and rider.fcm_device_token:
+            if rider:
+                tokens = _get_active_fcm_tokens(rider)
                 try:
                     sqs = boto3.client(
                         "sqs",
@@ -572,7 +590,7 @@ class RideRequestActionView(APIView):
 
                     queue_url = getattr(settings, "AWS_SQS_QUEUE_URL", None)
 
-                    if queue_url:
+                    if queue_url and tokens:
                         # Determine message based on action
                         titles = {
                             "accept": "Ride Accepted! ✅",
@@ -590,7 +608,7 @@ class RideRequestActionView(APIView):
                         } 
 
                         message_body = {
-                            "fcm_token": rider.fcm_device_token,
+                            "fcm_token": tokens[0],
                             "title": titles.get(action, "Ride Update"),
                             "body": bodies.get(action, "Your ride status has changed."),
                             "data": {
@@ -607,11 +625,14 @@ class RideRequestActionView(APIView):
                             data=message_body.get("data") or {},
                         )
 
-                        sqs.send_message(
-                            QueueUrl=queue_url, MessageBody=json.dumps(message_body)
-                        )
+                        for token in tokens:
+                            message_body["fcm_token"] = token
+                            sqs.send_message(
+                                QueueUrl=queue_url, MessageBody=json.dumps(message_body)
+                            )
                         print(
-                            f"Successfully pushed {action} notification to SQS for rider {rider.email}"
+                            f"Successfully pushed {action} notification to SQS for "
+                            f"{len(tokens)} device(s) for rider {rider.email}"
                         )
                 except Exception as e:
                     print(f"Failed to send SQS notification to rider: {e}")
@@ -794,7 +815,8 @@ class SendMessageView(APIView):
             )
 
             # --- Push Notification via AWS SQS ---
-            if receiver.fcm_device_token:
+            if receiver:
+                tokens = _get_active_fcm_tokens(receiver)
                 try:
                     sqs = boto3.client(
                         "sqs",
@@ -806,9 +828,9 @@ class SendMessageView(APIView):
                     )
                     queue_url = getattr(settings, "AWS_SQS_QUEUE_URL", None)
 
-                    if queue_url:
+                    if queue_url and tokens:
                         message_body = {
-                            "fcm_token": receiver.fcm_device_token,
+                            "fcm_token": tokens[0],
                             "title": f"New Message from {'Rider' if is_rider else 'Driver'}",
                             "body": message_text,
                             "data": {
@@ -819,9 +841,11 @@ class SendMessageView(APIView):
                                 "message_text": message_text,
                             },
                         }
-                        sqs.send_message(
-                            QueueUrl=queue_url, MessageBody=json.dumps(message_body)
-                        )
+                        for token in tokens:
+                            message_body["fcm_token"] = token
+                            sqs.send_message(
+                                QueueUrl=queue_url, MessageBody=json.dumps(message_body)
+                            )
                 except Exception as e:
                     print(f"Failed to send Chat SQS notification: {e}")
 

@@ -3,14 +3,15 @@ import { StyleSheet, View, Text, TouchableOpacity, Alert, ActivityIndicator, Tex
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useAuth } from '@/context/AuthContext';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { BASE_URL } from '@/constants/Config';
+import { BASE_URL, WS_URL as WS_BASE_URL } from '@/constants/Config';
 
 const { width, height } = Dimensions.get('window');
 
 export default function HomeScreen() {
-    const { user, signOut, refreshToken } = useAuth();
+    const { user, refreshToken } = useAuth();
+    const router = useRouter();
     const userRef = useRef(user);
 
     useEffect(() => {
@@ -41,6 +42,11 @@ export default function HomeScreen() {
     const ws = useRef(null);
     const locationSubscription = useRef(null);
     const mapRef = useRef(null);
+    const reconnectTimeout = useRef(null);
+    const shouldReconnect = useRef(false);
+    const latestLocationRef = useRef(null);
+    const appStateRef = useRef(appState);
+    const currentRideIdRef = useRef(currentRideId);
 
     // --- INITIALIZATION & FOCUS HANDLING ---
     useFocusEffect(
@@ -52,6 +58,14 @@ export default function HomeScreen() {
             };
         }, [])
     );
+
+    useEffect(() => {
+        appStateRef.current = appState;
+    }, [appState]);
+
+    useEffect(() => {
+        currentRideIdRef.current = currentRideId;
+    }, [currentRideId]);
 
     // --- POLLING LOGIC ---
     const startPolling = () => {
@@ -103,7 +117,15 @@ export default function HomeScreen() {
         if (active) {
             setActiveRide(active);
             setCurrentRideId(active.id);
-            if (appState !== 'tracking') startTracking(active.id);
+            currentRideIdRef.current = active.id;
+            const socketState = ws.current?.readyState;
+            const hasHealthyTrackingSession =
+                appStateRef.current === 'tracking' &&
+                currentRideIdRef.current === active.id &&
+                locationSubscription.current &&
+                (socketState === WebSocket.OPEN || socketState === WebSocket.CONNECTING);
+
+            if (!hasHealthyTrackingSession) startTracking(active.id);
             setPendingRequests([]); // Hide pending stack if on active ride
             return;
         }
@@ -121,10 +143,12 @@ export default function HomeScreen() {
     };
 
     const resetToIdle = () => {
-        if (appState !== 'idle') {
+        if (appStateRef.current !== 'idle') {
             setAppState('idle');
             setPendingRequests([]);
             setActiveRide(null);
+            setCurrentRideId(null);
+            currentRideIdRef.current = null;
             setOtpInput('');
             stopTracking();
             stopChatPolling();
@@ -238,32 +262,68 @@ export default function HomeScreen() {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') return Alert.alert('Location permission required');
 
+        shouldReconnect.current = true;
         connectWebSocket(rideId);
         let initialLoc = await Location.getCurrentPositionAsync({});
         setLocation(initialLoc);
+        latestLocationRef.current = initialLoc;
+        sendLocation(initialLoc.coords);
+        locationSubscription.current?.remove();
+        locationSubscription.current = null;
 
         locationSubscription.current = await Location.watchPositionAsync(
             { accuracy: Location.Accuracy.High, timeInterval: 3000, distanceInterval: 5 },
             (newLoc) => {
-                if (ws.current?.readyState === WebSocket.OPEN) {
-                    ws.current.send(JSON.stringify({
-                        role: 'driver',
-                        latitude: newLoc.coords.latitude,
-                        longitude: newLoc.coords.longitude,
-                        heading: newLoc.coords.heading || 0
-                    }));
-                }
                 setLocation(newLoc);
+                latestLocationRef.current = newLoc;
+                sendLocation(newLoc.coords);
             }
         );
     };
 
+    const sendLocation = (coords) => {
+        if (!coords || ws.current?.readyState !== WebSocket.OPEN) return;
+
+        ws.current.send(JSON.stringify({
+            role: 'driver',
+            latitude: coords.latitude,
+            longitude: coords.longitude,
+            heading: coords.heading || 0
+        }));
+    };
+
+    const scheduleReconnect = (rideId) => {
+        if (!shouldReconnect.current || !rideId) return;
+        if (reconnectTimeout.current) clearTimeout(reconnectTimeout.current);
+        reconnectTimeout.current = setTimeout(() => connectWebSocket(rideId), 3000);
+    };
+
     const connectWebSocket = (rideId) => {
-        const WS_URL = `${BASE_URL.replace('http', 'ws')}/ws/location/${rideId}/`;
-        if (ws.current) ws.current.close();
-        ws.current = new WebSocket(WS_URL);
-        ws.current.onopen = () => setIsConnected(true);
-        ws.current.onclose = () => setIsConnected(false);
+        const websocketUrl = `${WS_BASE_URL}/ws/location/${rideId}/`;
+
+        if (reconnectTimeout.current) {
+            clearTimeout(reconnectTimeout.current);
+            reconnectTimeout.current = null;
+        }
+
+        if (ws.current) {
+            ws.current.onclose = null;
+            ws.current.close();
+        }
+
+        ws.current = new WebSocket(websocketUrl);
+        ws.current.onopen = () => {
+            setIsConnected(true);
+            const latestCoords = latestLocationRef.current?.coords || latestLocationRef.current;
+            sendLocation(latestCoords);
+        };
+        ws.current.onerror = (error) => {
+            console.log("Driver websocket error:", error?.message || error);
+        };
+        ws.current.onclose = () => {
+            setIsConnected(false);
+            scheduleReconnect(rideId);
+        };
         ws.current.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
@@ -273,10 +333,21 @@ export default function HomeScreen() {
     };
 
     const stopTracking = () => {
+        shouldReconnect.current = false;
+        if (reconnectTimeout.current) {
+            clearTimeout(reconnectTimeout.current);
+            reconnectTimeout.current = null;
+        }
         locationSubscription.current?.remove();
-        ws.current?.close();
+        locationSubscription.current = null;
+        if (ws.current) {
+            ws.current.onclose = null;
+            ws.current.close();
+            ws.current = null;
+        }
         setRiderLocation(null);
         setIsConnected(false);
+        latestLocationRef.current = null;
     };
 
     // --- RENDERS ---
@@ -286,7 +357,7 @@ export default function HomeScreen() {
                 <Text style={styles.greeting}>Hello, {user?.name || 'Partner'}</Text>
                 <Text style={styles.headerSub}>You're currently {appState === 'idle' ? 'waiting for rides' : 'on a mission'}</Text>
             </View>
-            <TouchableOpacity onPress={signOut} style={styles.profileBtn}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={styles.profileBtn}>
                 <IconSymbol name="person.circle.fill" size={32} color="#fff" />
             </TouchableOpacity>
         </View>

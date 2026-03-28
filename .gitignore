@@ -2,6 +2,7 @@
 Locomotion/Locomotion/firebase-service-account.json
 Locomotion/Locomotion/.env
 Locomotion React/Locomotion React/.env
+LocomotionMobile/.env
 
 # Runtime/generated files
 **/__pycache__/

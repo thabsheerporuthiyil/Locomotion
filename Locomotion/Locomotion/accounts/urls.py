@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (Confirm2FAView, CookieTokenRefreshView,
                     CustomTokenObtainPairView, Disable2FAView,
+                    DriverMobileGoogleLoginView, DriverMobileLoginView,
                     ForgotPasswordSendOTPView, GoogleLoginView, LogoutView,
                     MeView, RegisterView, ResetPasswordView, SendOTPView,
                     NotificationsView,
@@ -25,6 +26,12 @@ urlpatterns = [
     ),
     path("reset-password/", ResetPasswordView.as_view(), name="reset-password"),
     path("auth/google/", GoogleLoginView.as_view(), name="google-login"),
+    path("mobile/driver/login/", DriverMobileLoginView.as_view(), name="mobile-driver-login"),
+    path(
+        "mobile/driver/auth/google/",
+        DriverMobileGoogleLoginView.as_view(),
+        name="mobile-driver-google-login",
+    ),
     path("2fa/setup/", Setup2FAView.as_view(), name="2fa-setup"),
     path("2fa/confirm/", Confirm2FAView.as_view(), name="2fa-confirm"),
     path("2fa/verify-login/", Verify2FALoginView.as_view(), name="2fa-verify-login"),

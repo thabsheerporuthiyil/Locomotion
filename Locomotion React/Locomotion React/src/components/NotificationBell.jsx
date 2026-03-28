@@ -2,12 +2,49 @@ import { useState, useRef, useEffect } from "react";
 import { Bell, Trash2, Clock } from "lucide-react";
 import { useNotificationStore } from "../store/notificationStore";
 import api from "../api/axios";
-import { onMessageListener } from "../firebase";
+import { onMessageListener, requestFirebaseNotificationPermission } from "../firebase";
+import { useAuthStore } from "../store/authStore";
+
+const buildNotificationDedupeKey = (data = {}, fallbackId = null) => {
+  if (data?.message_id || data?.ride_id) {
+    return `${data?.type || "update"}:${data?.ride_id || ""}:${data?.status || ""}:${data?.message_id || ""}`;
+  }
+
+  return fallbackId ? `notification:${fallbackId}` : null;
+};
+
+const requestHiddenTabNotificationFromServiceWorker = (payload) => {
+  if (
+    typeof window === "undefined" ||
+    !("serviceWorker" in navigator) ||
+    Notification.permission !== "granted"
+  ) {
+    return;
+  }
+
+  const sendMessage = (serviceWorker) => {
+    serviceWorker?.postMessage({
+      type: "show-background-notification",
+      payload,
+    });
+  };
+
+  if (navigator.serviceWorker.controller) {
+    sendMessage(navigator.serviceWorker.controller);
+    return;
+  }
+
+  navigator.serviceWorker.ready
+    .then((registration) => sendMessage(registration.active))
+    .catch(() => {});
+};
 
 export default function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const refreshTimeoutRef = useRef(null);
+  const hasRegisteredTokenRef = useRef(false);
+  const access = useAuthStore((state) => state.access);
   const {
     notifications,
     unreadCount,
@@ -23,6 +60,44 @@ export default function NotificationBell() {
     const interval = setInterval(() => fetchNotifications(api), 120000);
     return () => clearInterval(interval);
   }, [fetchNotifications]);
+
+  useEffect(() => {
+    if (!access) {
+      hasRegisteredTokenRef.current = false;
+      return;
+    }
+
+    if (
+      hasRegisteredTokenRef.current ||
+      typeof window === "undefined" ||
+      !("Notification" in window)
+    ) {
+      return;
+    }
+
+    let isActive = true;
+
+    requestFirebaseNotificationPermission()
+      .then((token) => {
+        if (!token || !isActive) return false;
+        return api
+          .post("accounts/update-fcm-token/", {
+            fcm_token: token,
+            platform: "web",
+          })
+          .then(() => true);
+      })
+      .then((didRegister) => {
+        if (isActive && didRegister) {
+          hasRegisteredTokenRef.current = true;
+        }
+      })
+      .catch((err) => console.error("Failed to register web FCM token", err));
+
+    return () => {
+      isActive = false;
+    };
+  }, [access]);
 
   const scheduleRefresh = () => {
     if (refreshTimeoutRef.current) clearTimeout(refreshTimeoutRef.current);
@@ -43,10 +118,7 @@ export default function NotificationBell() {
         payload?.data?.body ||
         "You have a new update.";
 
-      const hasDedupeKey = payload?.data?.message_id || payload?.data?.ride_id;
-      const dedupeKey = hasDedupeKey
-        ? `${payload?.data?.type || "update"}:${payload?.data?.ride_id || ""}:${payload?.data?.status || ""}:${payload?.data?.message_id || ""}`
-        : null;
+      const dedupeKey = buildNotificationDedupeKey(payload?.data || {});
 
       addNotification({
         title,
@@ -55,6 +127,10 @@ export default function NotificationBell() {
         dedupeKey,
       });
       scheduleRefresh();
+
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") {
+        requestHiddenTabNotificationFromServiceWorker(payload);
+      }
     });
 
     return () => {
@@ -81,10 +157,7 @@ export default function NotificationBell() {
         payload?.data?.body ||
         "You have a new update.";
 
-      const hasDedupeKey = payload?.data?.message_id || payload?.data?.ride_id;
-      const dedupeKey = hasDedupeKey
-        ? `${payload?.data?.type || "update"}:${payload?.data?.ride_id || ""}:${payload?.data?.status || ""}:${payload?.data?.message_id || ""}`
-        : null;
+      const dedupeKey = buildNotificationDedupeKey(payload?.data || {});
 
       addNotification({
         title,
@@ -93,12 +166,54 @@ export default function NotificationBell() {
         dedupeKey,
       });
       scheduleRefresh();
+      };
+
+      channel.addEventListener("message", handler);
+      return () => {
+        channel.removeEventListener("message", handler);
+        channel.close();
+      };
+  }, [addNotification, fetchNotifications]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
+
+    const handleServiceWorkerMessage = (event) => {
+      const payload = event?.data;
+      if (!payload) return;
+
+      const title =
+        payload?.notification?.title ||
+        payload?.data?.title ||
+        payload?.title ||
+        "Locomotion Update";
+      const body =
+        payload?.notification?.body ||
+        payload?.data?.body ||
+        payload?.body ||
+        "You have a new update.";
+      const data = payload?.data || {};
+      const dedupeKey = buildNotificationDedupeKey(
+        data,
+        payload?.id || null,
+      );
+
+      addNotification({
+        id: payload?.id,
+        title,
+        body,
+        data,
+        read: Boolean(payload?.read),
+        timestamp: payload?.timestamp || new Date().toISOString(),
+        dedupeKey,
+      });
+      scheduleRefresh();
     };
 
-    channel.addEventListener("message", handler);
+    navigator.serviceWorker.addEventListener("message", handleServiceWorkerMessage);
+
     return () => {
-      channel.removeEventListener("message", handler);
-      channel.close();
+      navigator.serviceWorker.removeEventListener("message", handleServiceWorkerMessage);
     };
   }, [addNotification, fetchNotifications]);
 

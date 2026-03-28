@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X } from 'lucide-react';
+import { API_ORIGIN } from '../utils/api_base';
 
 // Custom Map Car Icon
 const carIcon = new L.Icon({
@@ -26,39 +27,82 @@ export default function LiveTrackingMap({ rideId, onClose }) {
     const [driverLocation, setDriverLocation] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
     const wsRef = useRef(null);
+    const reconnectTimeoutRef = useRef(null);
+    const shouldReconnectRef = useRef(true);
+
+    const buildWebSocketUrl = () => {
+        const fallbackOrigin = window.location.origin;
+        let apiOrigin;
+
+        try {
+            apiOrigin = new URL(API_ORIGIN || fallbackOrigin, fallbackOrigin);
+        } catch {
+            apiOrigin = new URL(fallbackOrigin);
+        }
+
+        const protocol = apiOrigin.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${protocol}//${apiOrigin.host}/ws/location/${rideId}/`;
+    };
 
     useEffect(() => {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname === 'localhost' ? '192.168.220.46' : window.location.host;
-        const WS_URL = `${protocol}//${host}/ws/location/${rideId}/`;
-        wsRef.current = new WebSocket(WS_URL);
+        shouldReconnectRef.current = true;
 
-        wsRef.current.onopen = () => {
-            console.log("WebSocket connected for ride:", rideId);
-            setIsConnected(true);
-        };
-
-        wsRef.current.onclose = () => setIsConnected(false);
-        wsRef.current.onerror = (e) => console.error("WS Error:", e);
-
-        wsRef.current.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-                // We only care about the driver's location
-                if (data.role === 'driver' && data.latitude && data.longitude) {
-                    setDriverLocation({
-                        latitude: data.latitude,
-                        longitude: data.longitude,
-                        heading: data.heading || 0
-                    });
-                }
-            } catch (err) {
-                console.error("Parse error", err);
+        const connect = () => {
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+                reconnectTimeoutRef.current = null;
             }
+
+            if (wsRef.current) {
+                wsRef.current.onclose = null;
+                wsRef.current.close();
+            }
+
+            const socket = new WebSocket(buildWebSocketUrl());
+            wsRef.current = socket;
+
+            socket.onopen = () => {
+                console.log("WebSocket connected for ride:", rideId);
+                setIsConnected(true);
+            };
+
+            socket.onclose = () => {
+                setIsConnected(false);
+                if (!shouldReconnectRef.current) return;
+                reconnectTimeoutRef.current = setTimeout(connect, 3000);
+            };
+
+            socket.onerror = (error) => {
+                console.error("WS Error:", error);
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.role === 'driver' && data.latitude && data.longitude) {
+                        setDriverLocation({
+                            latitude: data.latitude,
+                            longitude: data.longitude,
+                            heading: data.heading || 0
+                        });
+                    }
+                } catch (err) {
+                    console.error("Parse error", err);
+                }
+            };
         };
+
+        connect();
 
         return () => {
-            if (wsRef.current) wsRef.current.close();
+            shouldReconnectRef.current = false;
+            if (reconnectTimeoutRef.current) {
+                clearTimeout(reconnectTimeoutRef.current);
+            }
+            if (wsRef.current) {
+                wsRef.current.onclose = null;
+                wsRef.current.close();
+            }
         };
     }, [rideId]);
 
