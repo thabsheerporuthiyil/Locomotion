@@ -7,8 +7,8 @@
 //   VITE_AI_ORIGIN=http://localhost
 // (use the above if you run nginx on port 80)
 
-export const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || "http://localhost:8000";
-export const AI_ORIGIN = import.meta.env.VITE_AI_ORIGIN || "http://localhost:8001";
+export const API_ORIGIN = import.meta.env.VITE_API_ORIGIN;
+export const AI_ORIGIN = import.meta.env.VITE_AI_ORIGIN;
 
 // Backwards-compatible export used by some components to build absolute media URLs.
 export const API_BASE = API_ORIGIN.replace(/\/+$/, "");

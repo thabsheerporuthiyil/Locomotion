@@ -1,8 +1,7 @@
 const normalizeUrl = (value, fallback) => (value || fallback).replace(/\/+$/, '');
 
 export const BASE_URL = normalizeUrl(
-  process.env.EXPO_PUBLIC_API_BASE_URL,
-  'http://10.99.75.33'
+  process.env.EXPO_PUBLIC_API_BASE_URL
 );
 
 export const WS_URL = BASE_URL.replace(/^http/i, 'ws');

@@ -574,7 +574,7 @@ class RideRequestActionView(APIView):
 
         # --- Push Notification to Rider via AWS SQS ---
         # Only notify for statuses that the rider cares about in real-time
-        if action in ["accept", "arrive", "start_trip", "complete", "cancel"]:
+        if action in ["accept", "arrive", "start_trip", "complete", "cancel", "confirm_payment"]:
             rider = ride_request.rider
             if rider:
                 tokens = _get_active_fcm_tokens(rider)
@@ -617,6 +617,13 @@ class RideRequestActionView(APIView):
                                 "status": ride_request.status,
                             },
                         }
+                        if action == "confirm_payment":
+                            message_body["title"] = "Payment Completed!"
+                            message_body["body"] = (
+                                f"Payment for your trip with {ride_request.driver.user.name} "
+                                "has been confirmed."
+                            )
+                            message_body["data"]["type"] = "payment_completed"
 
                         Notification.objects.create(
                             user=rider,

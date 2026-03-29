@@ -5,16 +5,20 @@ metadata:
   labels:
     {{- include "locomotion.labels" . | nindent 4 }}
 data:
+  DJANGO_ENV: {{ .Values.appConfig.djangoEnv | quote }}
   DEBUG: {{ ternary "True" "False" .Values.appConfig.debug | quote }}
   ALLOWED_HOSTS: {{ join "," .Values.appConfig.allowedHosts | quote }}
   CORS_ALLOWED_ORIGINS: {{ join "," .Values.appConfig.corsAllowedOrigins | quote }}
   CSRF_TRUSTED_ORIGINS: {{ join "," .Values.appConfig.csrfTrustedOrigins | quote }}
   GOOGLE_CLIENT_ID: {{ .Values.appConfig.googleClientId | quote }}
+  GOOGLE_ANDROID_CLIENT_ID: {{ .Values.appConfig.googleAndroidClientId | quote }}
+  GOOGLE_IOS_CLIENT_ID: {{ .Values.appConfig.googleIosClientId | quote }}
   EMAIL_HOST: {{ .Values.appConfig.emailHost | quote }}
   EMAIL_PORT: {{ .Values.appConfig.emailPort | quote }}
   EMAIL_USE_TLS: {{ .Values.appConfig.emailUseTls | quote }}
   DEFAULT_FROM_EMAIL: {{ .Values.appConfig.defaultFromEmail | quote }}
-  ORS_API_KEY: {{ .Values.appConfig.orsApiKey | quote }}
+  SESSION_COOKIE_SAMESITE: {{ .Values.appConfig.sessionCookieSameSite | quote }}
+  CSRF_COOKIE_SAMESITE: {{ .Values.appConfig.csrfCookieSameSite | quote }}
   RAZORPAY_KEY_ID: {{ .Values.appConfig.razorpayKeyId | quote }}
   USE_S3: {{ ternary "True" "False" .Values.appConfig.useS3 | quote }}
   AWS_REGION: {{ .Values.appConfig.awsRegion | quote }}
@@ -35,6 +39,7 @@ data:
   POSTGRES_USER: {{ default "postgres" .Values.appConfig.postgresUser | quote }}
   POSTGRES_HOST: {{ default "postgres" .Values.appConfig.postgresHost | quote }}
   POSTGRES_PORT: {{ default "5432" .Values.appConfig.postgresPort | quote }}
+  POSTGRES_SSL_MODE: {{ .Values.appConfig.postgresSslMode | quote }}
   {{- end }}
   {{- if .Values.redis.enabled }}
   REDIS_CACHE_URL: {{ printf "redis://%s-redis:%d/1" (include "locomotion.fullname" .) (int .Values.redis.service.port) | quote }}

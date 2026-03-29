@@ -58,7 +58,7 @@ def _issue_auth_response(user, role=None, extra_payload=None):
         value=str(refresh),
         httponly=True,
         secure=settings.SESSION_COOKIE_SECURE,
-        samesite="Lax",
+        samesite=settings.SESSION_COOKIE_SAMESITE,
     )
     return response
 
@@ -209,8 +209,8 @@ class VerifyOTPView(APIView):
                 key="refresh",
                 value=str(refresh),
                 httponly=True,
-                secure=True,
-                samesite="Lax",
+                secure=settings.SESSION_COOKIE_SECURE,
+                samesite=settings.SESSION_COOKIE_SAMESITE,
             )
             return response
 
@@ -627,8 +627,8 @@ class Verify2FALoginView(APIView):
             key="refresh",
             value=str(refresh),
             httponly=True,
-            secure=False,
-            samesite="Lax",
+            secure=settings.SESSION_COOKIE_SECURE,
+            samesite=settings.SESSION_COOKIE_SAMESITE,
         )
 
         return response

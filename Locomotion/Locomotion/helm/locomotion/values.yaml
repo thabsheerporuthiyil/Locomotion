@@ -30,6 +30,7 @@ podSecurityContext: {}
 securityContext: {}
 
 appConfig:
+  djangoEnv: development
   debug: false
   allowedHosts:
     - "*"
@@ -38,14 +39,17 @@ appConfig:
   csrfTrustedOrigins:
     - http://localhost:5173
   googleClientId: ""
+  googleAndroidClientId: ""
+  googleIosClientId: ""
   emailHost: smtp.gmail.com
   emailPort: "587"
   emailUseTls: "True"
   defaultFromEmail: ""
-  orsApiKey: ""
+  sessionCookieSameSite: Lax
+  csrfCookieSameSite: Lax
   razorpayKeyId: ""
   useS3: true
-  awsRegion: eu-north-1
+  awsRegion: ap-south-1
   awsStorageBucketName: ""
   awsMediaUrlExpireSeconds: "3600"
   llmProvider: gemini
@@ -59,6 +63,7 @@ appConfig:
   postgresUser: postgres
   postgresHost: postgres
   postgresPort: "5432"
+  postgresSslMode: ""
   sqsQueueUrl: ""
   firebaseServiceAccountPath: /var/secrets/firebase/firebase-service-account.json
   aiAllowedOrigins:
@@ -71,6 +76,7 @@ secrets:
   postgresPassword: ""
   emailHostUser: ""
   emailHostPassword: ""
+  orsApiKey: ""
   awsAccessKeyId: ""
   awsSecretAccessKey: ""
   geminiApiKey: ""
@@ -82,12 +88,9 @@ web:
   enabled: true
   replicaCount: 2
   command:
-    - daphne
-    - -b
-    - 0.0.0.0
-    - -p
-    - "8000"
-    - Locomotion.asgi:application
+    - sh
+    - -c
+    - python manage.py collectstatic --noinput && daphne -b 0.0.0.0 -p 8000 Locomotion.asgi:application
   containerPort: 8000
   service:
     type: ClusterIP

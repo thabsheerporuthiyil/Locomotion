@@ -98,6 +98,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -288,6 +289,11 @@ USE_TZ = _env_bool("USE_TZ", True)
 
 STATIC_URL = os.environ.get("STATIC_URL", "/static/")
 STATIC_ROOT = os.environ.get("STATIC_ROOT", os.path.join(BASE_DIR, "staticfiles"))
+STATICFILES_STORAGE_BACKEND = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+    if IS_PRODUCTION
+    else "django.contrib.staticfiles.storage.StaticFilesStorage"
+)
 
 # S3 Media Storage
 USE_S3 = os.environ.get("USE_S3", "False") == "True"
@@ -310,7 +316,7 @@ if USE_S3:
             "BACKEND": "Locomotion.storage_backends.MediaStorage",
         },
         "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            "BACKEND": STATICFILES_STORAGE_BACKEND,
         },
     }
     MEDIA_URL = f"https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/"
@@ -321,7 +327,7 @@ else:
             "BACKEND": "django.core.files.storage.FileSystemStorage",
         },
         "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            "BACKEND": STATICFILES_STORAGE_BACKEND,
         },
     }
     MEDIA_URL = "/media/"
@@ -358,7 +364,7 @@ RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
 # AWS SQS Configuration
-AWS_REGION = os.environ.get("AWS_REGION", "eu-north-1")
+AWS_REGION = os.environ.get("AWS_REGION")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_SQS_QUEUE_URL = os.environ.get("AWS_SQS_QUEUE_URL", "")

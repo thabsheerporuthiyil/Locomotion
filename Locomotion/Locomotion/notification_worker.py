@@ -31,7 +31,7 @@ except Exception as e:
     exit(1)
 
 # AWS SQS Configuration
-AWS_REGION = os.environ.get("AWS_REGION", "eu-north-1")
+AWS_REGION = os.environ.get("AWS_REGION")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_SQS_QUEUE_URL = os.environ.get("AWS_SQS_QUEUE_URL")

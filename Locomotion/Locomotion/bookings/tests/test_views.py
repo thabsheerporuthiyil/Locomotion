@@ -1,6 +1,10 @@
+from unittest.mock import Mock, patch
+
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
+from accounts.models import Notification
 from bookings.models import RideRequest
 from drivers.models import DriverProfile
 from location.models import District, Panchayath, Taluk
@@ -113,3 +117,26 @@ class RideActionTest(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.ride.status, "accepted")
+
+    @override_settings(AWS_SQS_QUEUE_URL="https://example.com/queue")
+    @patch("bookings.views.boto3.client")
+    def test_confirm_payment_creates_payment_completed_notification(self, mock_boto_client):
+
+        self.ride.status = "completed"
+        self.ride.save(update_fields=["status"])
+        self.rider.fcm_device_token = "test-fcm-token"
+        self.rider.save(update_fields=["fcm_device_token"])
+        mock_boto_client.return_value = Mock()
+
+        url = f"/api/bookings/{self.ride.id}/confirm_payment/"
+
+        response = self.client.post(url)
+
+        self.ride.refresh_from_db()
+        notification = Notification.objects.filter(user=self.rider).latest("created_at")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(self.ride.is_paid)
+        self.assertEqual(notification.title, "Payment Completed!")
+        self.assertEqual(notification.data["type"], "payment_completed")
+        self.assertEqual(notification.data["ride_id"], str(self.ride.id))

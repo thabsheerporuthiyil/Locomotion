@@ -9,9 +9,9 @@ services:
   db:
     image: postgres:15
     environment:
-      POSTGRES_DB: locomotion
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 12345678
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5433:5432"
     volumes:
@@ -34,7 +34,7 @@ services:
       - redis
       - db
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - USE_S3=True
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -54,7 +54,7 @@ services:
       - redis
       - db
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - USE_S3=True
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
@@ -74,7 +74,7 @@ services:
       - redis
       - db
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
     networks:
       - app_network
 
@@ -88,10 +88,10 @@ services:
     depends_on:
       - db
     environment:
-      - AWS_REGION=${AWS_REGION:-eu-north-1}
+      - AWS_REGION=${AWS_REGION}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_SQS_QUEUE_URL=${AWS_SQS_QUEUE_URL:-https://sqs.eu-north-1.amazonaws.com/471914528467/locomotion-notifications}
+      - AWS_SQS_QUEUE_URL=${AWS_SQS_QUEUE_URL}
       - FIREBASE_SERVICE_ACCOUNT_PATH=firebase-service-account.json
     restart: unless-stopped
     networks:
@@ -118,8 +118,8 @@ services:
     depends_on:
       - qdrant
     environment:
-      - QDRANT_HOST=qdrant
-      - QDRANT_PORT=6333
+      - QDRANT_HOST=${QDRANT_HOST}
+      - QDRANT_PORT=${QDRANT_PORT}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GROQ_API_KEY=${GROQ_API_KEY}
       - LLM_PROVIDER=${LLM_PROVIDER}

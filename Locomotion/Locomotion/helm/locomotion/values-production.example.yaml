@@ -11,6 +11,7 @@ images:
     tag: "2026-03-27"
 
 appConfig:
+  djangoEnv: production
   debug: false
   allowedHosts:
     - api.example.com
@@ -19,18 +20,23 @@ appConfig:
   csrfTrustedOrigins:
     - https://app.example.com
   googleClientId: your-google-web-client-id
+  googleAndroidClientId: your-google-android-client-id
+  googleIosClientId: your-google-ios-client-id
   defaultFromEmail: noreply@example.com
+  sessionCookieSameSite: Lax
+  csrfCookieSameSite: Lax
   useS3: true
-  awsRegion: eu-north-1
+  awsRegion: ap-south-1
   awsStorageBucketName: locomotion-media
   llmProvider: gemini
-  sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/123456789012/locomotion-notifications
+  sqsQueueUrl: https://sqs.ap-south-1.amazonaws.com/471914528467/locomotion-notifications
   aiAllowedOrigins:
     - https://app.example.com
   postgresDb: locomotion
   postgresUser: locomotion
   postgresHost: your-managed-postgres-host
   postgresPort: "5432"
+  postgresSslMode: require
   redisCacheUrl: redis://your-managed-redis:6379/1
   channelRedisUrl: redis://your-managed-redis:6379/1
   celeryBrokerUrl: redis://your-managed-redis:6379/0

@@ -48,7 +48,6 @@ helm upgrade locomotion ./helm/locomotion \
    - FastAPI AI
 2. Pick a values file:
    - `values-local.example.yaml` for local / small cluster testing
-   - `values-eks.example.yaml` for Amazon EKS
    - `values-production.example.yaml` for production-style deployment
 3. Create Kubernetes secrets for:
    - application secrets
@@ -62,10 +61,3 @@ helm upgrade locomotion ./helm/locomotion \
 The chart now includes a dedicated notification worker deployment that matches your Docker setup.
 It mounts the Firebase service account file and consumes SQS-based notification jobs without sharing
 the web pod lifecycle.
-
-## EKS
-
-If you are deploying to Amazon EKS, use:
-
-- `values-eks.example.yaml`
-- `EKS-DEPLOYMENT.md`

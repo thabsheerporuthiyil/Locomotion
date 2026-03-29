@@ -35,6 +35,12 @@ spec:
                 name: {{ include "locomotion.configMapName" . }}
             - secretRef:
                 name: {{ include "locomotion.secretName" . }}
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            failureThreshold: 60
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /

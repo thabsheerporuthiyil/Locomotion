@@ -1,93 +1,73 @@
-// Foreground Notifications
-
-// getToken → generates a unique browser/device token
-// onMessage → listens for notifications when website is open
+// Foreground notifications
 import { initializeApp } from "firebase/app";
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
-
-// Firebase project configuration 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "",
-  authDomain: "locomotion-7c62d.firebaseapp.com",
-  projectId: "locomotion-7c62d",
-  storageBucket: "locomotion-7c62d.firebasestorage.app",
-  messagingSenderId: "1096933293116",
-  appId: "1:1096933293116:web:efccdba3f0414a029d5739"
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "",
 };
 
+const firebaseVapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || "";
+const hasFirebaseMessagingConfig =
+  Object.values(firebaseConfig).every(Boolean) && Boolean(firebaseVapidKey);
 
-const app = initializeApp(firebaseConfig);
+const app = hasFirebaseMessagingConfig ? initializeApp(firebaseConfig) : null;
+const messaging = app ? getMessaging(app) : null;
 
-// Initialize Firebase Cloud Messaging service
-const messaging = getMessaging(app);
-
-// Function to request notification permission from the browser
-// and generate an FCM token for this browser/device
 export const requestFirebaseNotificationPermission = () => {
   return new Promise((resolve, reject) => {
+    if (!messaging || !firebaseVapidKey || typeof Notification === "undefined") {
+      resolve(null);
+      return;
+    }
 
-    // Ask the user for notification permission
     Notification.requestPermission().then((permission) => {
-
-      // If user clicks "Allow"
-      if (permission === 'granted') {
-
-        console.log('Notification permission granted.');
-        const vapidKey =
-          "BKWoCwvan93p_UQsHHs06SMebk35MMcR898Pyv3J0d25VTY1c2uaMKNhcgPMH3rWvYo-p0ivGO4G8GGK1iUdicQ";
+      if (permission === "granted") {
+        console.log("Notification permission granted.");
 
         const tokenPromise =
           "serviceWorker" in navigator
             ? navigator.serviceWorker.ready.then((serviceWorkerRegistration) =>
-                getToken(messaging, { vapidKey, serviceWorkerRegistration }),
+                getToken(messaging, {
+                  vapidKey: firebaseVapidKey,
+                  serviceWorkerRegistration,
+                }),
               )
-            : getToken(messaging, { vapidKey });
+            : getToken(messaging, { vapidKey: firebaseVapidKey });
 
         tokenPromise
-
-        .then((currentToken) => {
-          // If token successfully generated
-          if (currentToken) {
-            // Return token so React app can send it to backend
-            resolve(currentToken);
-
-          } else {
-            // Token generation failed (rare case)
-            console.log('No registration token available. Request permission to generate one.');
-            resolve(null);
-
-          }
-        })
-
-        .catch((err) => {
-
-          // Error while generating token
-          console.log('An error occurred while retrieving token. ', err);
-          reject(err);
-
-        });
-
+          .then((currentToken) => {
+            if (currentToken) {
+              resolve(currentToken);
+            } else {
+              console.log(
+                "No registration token available. Request permission to generate one.",
+              );
+              resolve(null);
+            }
+          })
+          .catch((err) => {
+            console.log("An error occurred while retrieving token.", err);
+            reject(err);
+          });
       } else {
-
-        // User denied notification permission
-        console.log('Unable to get permission to notify.');
+        console.log("Unable to get permission to notify.");
         resolve(null);
-
       }
     });
   });
 };
 
-// Function to listen for notifications when the website is OPEN
-// This handles "foreground notifications"
 export const onMessageListener = (callback) => {
+  if (!messaging) {
+    return () => {};
+  }
 
-  // onMessage triggers when Firebase sends a message to the active page
   return onMessage(messaging, (payload) => {
-
-    // Pass the received message to the callback function
     callback(payload);
-
   });
 };

@@ -4,13 +4,11 @@ This directory is now the single Kubernetes deployment source for Locomotion.
 
 ## Structure
 
-- `locomotion/Chart.yaml` — Helm chart metadata
-- `locomotion/values.yaml` — base values
-- `locomotion/values-local.example.yaml` — local or small-cluster example
-- `locomotion/values-eks.example.yaml` — Amazon EKS example
-- `locomotion/values-production.example.yaml` — production-style example
-- `locomotion/EKS-DEPLOYMENT.md` — EKS rollout guide
-- `locomotion/templates/` — Kubernetes templates
+- `locomotion/Chart.yaml` - Helm chart metadata
+- `locomotion/values.yaml` - base values
+- `locomotion/values-local.example.yaml` - local or small-cluster example
+- `locomotion/values-production.example.yaml` - production-style example
+- `locomotion/templates/` - Kubernetes templates
 
 ## Recommended workflow
 

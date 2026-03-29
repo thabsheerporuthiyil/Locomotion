@@ -46,16 +46,31 @@ spec:
                 name: {{ include "locomotion.configMapName" . }}
             - secretRef:
                 name: {{ include "locomotion.secretName" . }}
+          startupProbe:
+            httpGet:
+              path: /swagger/
+              port: http
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
+            failureThreshold: 30
+            periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /swagger/
               port: http
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
             initialDelaySeconds: 15
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /swagger/
               port: http
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
             initialDelaySeconds: 30
             periodSeconds: 20
           resources:

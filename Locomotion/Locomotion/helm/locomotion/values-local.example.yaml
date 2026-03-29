@@ -7,6 +7,7 @@ images:
     tag: latest
 
 appConfig:
+  djangoEnv: development
   debug: true
   allowedHosts:
     - "*"
@@ -15,10 +16,14 @@ appConfig:
   csrfTrustedOrigins:
     - http://localhost:5173
   googleClientId: your-google-web-client-id
+  googleAndroidClientId: your-google-android-client-id
+  googleIosClientId: your-google-ios-client-id
   defaultFromEmail: noreply@locomotion.local
+  sessionCookieSameSite: Lax
+  csrfCookieSameSite: Lax
   useS3: false
   llmProvider: gemini
-  sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/123456789012/locomotion-notifications
+  sqsQueueUrl: https://sqs.ap-south-1.amazonaws.com/471914528467/locomotion-notifications
   aiAllowedOrigins:
     - http://localhost:5173
 
@@ -28,6 +33,7 @@ secrets:
   postgresPassword: change-me
   emailHostUser: ""
   emailHostPassword: ""
+  orsApiKey: ""
   awsAccessKeyId: ""
   awsSecretAccessKey: ""
   geminiApiKey: ""

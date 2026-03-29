@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 celerybeat-schedule
 Locomotion/k8s/secret.yaml
+Locomotion/firebase-service-account.json
