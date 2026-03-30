@@ -9,11 +9,28 @@ django.setup()
 
 from drivers.models import DriverProfile
 from bookings.models import RideRequest
+from django.conf import settings
 
-FASTAPI_URL = "http://localhost:8001/api/ai/sync-driver"
-# if running from within same docker network it would be http://fastapi-ai:8000 but we run this from host or web container?
-# let's write it to be run from the web container
-FASTAPI_INTERNAL_URL = "http://fastapi-ai:8000/api/ai/sync-driver"
+
+def _candidate_sync_urls() -> list[str]:
+    urls: list[str] = []
+    configured_base = (getattr(settings, "AI_SERVICE_URL", "") or "").rstrip("/")
+    if configured_base:
+        urls.append(f"{configured_base}/api/ai/sync-driver")
+
+    local_url = "http://localhost:8001/api/ai/sync-driver"
+    internal_url = "http://fastapi-ai:8000/api/ai/sync-driver"
+
+    if _running_in_docker():
+        if internal_url not in urls:
+            urls.append(internal_url)
+    else:
+        if local_url not in urls:
+            urls.append(local_url)
+        if internal_url not in urls:
+            urls.append(internal_url)
+
+    return urls
 
 def _running_in_docker() -> bool:
     # Works for typical Linux containers (including docker compose services).
@@ -72,15 +89,18 @@ def sync_drivers():
                 "reviews_text": reviews_text
             }
             
-            # If running inside docker compose (e.g. `docker compose exec web ...`), ALWAYS use the service DNS name.
-            # `localhost:8001` only works from the host, not from inside the container.
-            if _running_in_docker():
-                response = _post_with_retries(FASTAPI_INTERNAL_URL, payload, timeout=30, attempts=3)
-            else:
+            response = None
+            last_err = None
+            for sync_url in _candidate_sync_urls():
                 try:
-                    response = _post_with_retries(FASTAPI_URL, payload, timeout=30, attempts=3)
-                except requests.exceptions.ConnectionError:
-                    response = _post_with_retries(FASTAPI_INTERNAL_URL, payload, timeout=30, attempts=1)
+                    response = _post_with_retries(sync_url, payload, timeout=30, attempts=3)
+                    break
+                except requests.exceptions.ConnectionError as exc:
+                    last_err = exc
+                    continue
+
+            if response is None and last_err is not None:
+                raise last_err
                 
             if response.status_code == 200:
                 success_count += 1

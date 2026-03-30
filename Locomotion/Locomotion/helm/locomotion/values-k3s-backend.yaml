@@ -1,0 +1,146 @@
+global:
+  storageClass: local-path
+
+images:
+  backend:
+    repository: locomotion-web
+    tag: latest
+    pullPolicy: IfNotPresent
+  ai:
+    repository: locomotion-fastapi-ai
+    tag: latest
+    pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+
+fastapiAiServiceAccount:
+  create: false
+
+appConfig:
+  djangoEnv: development
+  debug: false
+  allowedHosts:
+    - "*"
+  corsAllowedOrigins:
+    - http://localhost:5173
+    - http://3.109.231.187
+    - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
+  csrfTrustedOrigins:
+    - http://localhost:5173
+    - http://3.109.231.187
+    - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
+  googleClientId: 1096933293116-39tk0046n27e10gn87evv4ihee40q8qp.apps.googleusercontent.com
+  googleAndroidClientId: 1096933293116-jmsndspcrcss1m5pb2jlpdpuvjp4val9.apps.googleusercontent.com
+  googleIosClientId: 1096933293116-6bvf71fh3c88brbhrmke9hto6q46c36s.apps.googleusercontent.com
+  emailHost: smtp.gmail.com
+  emailPort: "587"
+  emailUseTls: "True"
+  defaultFromEmail: locomotiondrivers@gmail.com
+  sessionCookieSameSite: Lax
+  csrfCookieSameSite: Lax
+  razorpayKeyId: rzp_test_RzhW17wdnjByQf
+  useS3: true
+  awsRegion: ap-south-1
+  awsStorageBucketName: locomotion-media
+  awsMediaUrlExpireSeconds: "3600"
+  llmProvider: gemini
+  aiServiceUrl: https://your-space-name.hf.space
+  sqsQueueUrl: https://sqs.ap-south-1.amazonaws.com/471914528467/locomotion-notifications
+  firebaseServiceAccountPath: /var/secrets/firebase/firebase-service-account.json
+  aiAllowedOrigins:
+    - http://localhost:5173
+    - http://3.109.231.187
+    - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
+  qdrantHost: ""
+  qdrantPort: "6333"
+
+secrets:
+  create: false
+  existingSecret: locomotion-app-secrets
+
+web:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: false
+  pdb:
+    enabled: false
+
+celery:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+celeryBeat:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+notificationWorker:
+  enabled: true
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  serviceAccount:
+    create: true
+  firebase:
+    existingSecretName: locomotion-firebase-admin
+
+fastapiAi:
+  enabled: false
+  autoscaling:
+    enabled: false
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    - paths:
+        - path: /
+          pathType: Prefix
+          service: web
+  tls: []
+
+migrations:
+  enabled: true
+
+postgresql:
+  enabled: true
+  auth:
+    database: locomotion
+    username: postgres
+  persistence:
+    enabled: true
+    size: 5Gi
+
+redis:
+  enabled: true
+
+qdrant:
+  enabled: false

@@ -33,6 +33,8 @@ app.add_middleware(
 )
 
 # Configuration
+QDRANT_URL = (os.environ.get("QDRANT_URL") or "").strip()
+QDRANT_API_KEY = (os.environ.get("QDRANT_API_KEY") or "").strip()
 QDRANT_HOST = os.environ.get("QDRANT_HOST", "qdrant")
 QDRANT_PORT = int(os.environ.get("QDRANT_PORT", 6333))
 COLLECTION_NAME = "drivers"
@@ -42,7 +44,10 @@ LLM_PROVIDER = (os.environ.get("LLM_PROVIDER") or "gemini").strip().lower()  # "
 
 # Initialize models and clients
 encoder = SentenceTransformer('all-MiniLM-L6-v2')
-qdrant = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+if QDRANT_URL:
+    qdrant = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY or None)
+else:
+    qdrant = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
 
 # LLM Clients
 from langchain_google_genai import ChatGoogleGenerativeAI

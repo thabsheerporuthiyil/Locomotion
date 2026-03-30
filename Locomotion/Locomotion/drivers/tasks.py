@@ -2,10 +2,14 @@ import requests
 import logging
 from celery import shared_task
 from django.utils import timezone
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-FASTAPI_INTERNAL_URL = "http://fastapi-ai:8000/api/ai/sync-driver"
+
+def _ai_sync_url() -> str:
+    ai_base = (getattr(settings, "AI_SERVICE_URL", "") or "http://fastapi-ai:8000").rstrip("/")
+    return f"{ai_base}/api/ai/sync-driver"
 
 @shared_task
 def sync_driver_to_qdrant(driver_profile_id):
@@ -56,8 +60,7 @@ def sync_driver_to_qdrant(driver_profile_id):
             "reviews_text": reviews_text
         }
         
-        # Push to the internal FastAPI network
-        response = requests.post(FASTAPI_INTERNAL_URL, json=payload, timeout=10)
+        response = requests.post(_ai_sync_url(), json=payload, timeout=20)
         
         if response.status_code == 200:
             logger.info(f"Successfully synced driver {driver.pk} ({payload['name']}) to AI Matchmaker.")
