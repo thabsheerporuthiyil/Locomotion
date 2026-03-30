@@ -14,6 +14,7 @@
     },
     "android": {
       "package": "com.locomotion.driver",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -51,6 +52,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": false
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "77c30e11-755f-4880-aa0f-c84b1ebc894e"
+      }
     }
   }
 }

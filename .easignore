@@ -1,0 +1,26 @@
+# This repo is a monorepo, but EAS is only meant to upload the Expo app in
+# LocomotionMobile. Keep the archive small by excluding everything else, then
+# re-exclude local-only/generated folders inside the mobile app itself.
+*
+!LocomotionMobile/
+!LocomotionMobile/**
+
+LocomotionMobile/node_modules/
+LocomotionMobile/.expo/
+LocomotionMobile/.gradle-local/
+LocomotionMobile/.vscode/
+LocomotionMobile/android/
+LocomotionMobile/ios/
+LocomotionMobile/dist/
+LocomotionMobile/web-build/
+LocomotionMobile/.metro-health-check*
+LocomotionMobile/npm-debug.*
+LocomotionMobile/yarn-debug.*
+LocomotionMobile/yarn-error.*
+LocomotionMobile/*.log
+LocomotionMobile/*.orig.*
+LocomotionMobile/*.jks
+LocomotionMobile/*.p8
+LocomotionMobile/*.p12
+LocomotionMobile/*.key
+LocomotionMobile/*.mobileprovision

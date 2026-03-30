@@ -3,9 +3,11 @@ import api from "../api/axios";
 import { useAuthStore } from "../store/authStore";
 import { 
     Plus, Car, FileText, CheckCircle, Navigation, XCircle, 
-    Zap, ArrowUpRight, Calendar, ArrowRight, Brain, Info, AlertTriangle, RefreshCcw
+    Zap, ArrowUpRight, Calendar, ArrowRight, Brain, Info, AlertTriangle, RefreshCcw, Download, Smartphone
 } from "lucide-react";
 import { requestFirebaseNotificationPermission, onMessageListener } from "../firebase";
+
+const DRIVER_APP_INSTALL_URL = "https://expo.dev/accounts/thabsheerporuthiyil/projects/LocomotionMobile/builds/3ce9df31-ac77-4fdd-a97c-a1af7b9e67f3";
 
 export default function DriverDashboard() {
     const { name } = useAuthStore();
@@ -45,6 +47,7 @@ export default function DriverDashboard() {
     const [remindersLoading, setRemindersLoading] = useState(false);
     const [applyLoading, setApplyLoading] = useState(false);
     const [applyResult, setApplyResult] = useState(null);
+    const isAppleDevice = /iPad|iPhone|iPod/i.test(window.navigator.userAgent);
 
     const formatDateTime = (iso) => {
         if (!iso) return "";
@@ -273,6 +276,40 @@ export default function DriverDashboard() {
                                 <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition-all duration-300 ${isAvailable ? 'translate-x-7' : 'translate-x-1'}`} />
                              </button>
                         </div>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900/40 backdrop-blur-xl p-6 rounded-[2rem] border border-slate-800/60 shadow-2xl">
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                        <div className="flex items-start gap-4">
+                            <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                                <Smartphone size={22} />
+                            </div>
+                            <div>
+                                <p className="text-[0.65rem] font-black text-indigo-400 uppercase tracking-[0.25em] mb-2">
+                                    Driver App
+                                </p>
+                                <h2 className="text-xl font-black text-white">Install the Android driver app</h2>
+                                <p className="text-slate-400 text-sm font-medium mt-1 max-w-2xl">
+                                    Use the mobile app for faster ride updates, live notifications, and driver-only actions on the go.
+                                </p>
+                                <p className="text-slate-500 text-xs font-medium mt-3">
+                                    {isAppleDevice
+                                        ? "iPhone users need a separate TestFlight link. This button currently opens the Android install page."
+                                        : "This opens your Expo install page for the latest Android test build."}
+                                </p>
+                            </div>
+                        </div>
+
+                        <a
+                            href={DRIVER_APP_INSTALL_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center justify-center gap-3 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-3 rounded-2xl font-black tracking-widest uppercase text-xs transition-all shadow-lg hover:shadow-indigo-600/30 active:scale-95 whitespace-nowrap"
+                        >
+                            <Download size={16} />
+                            Download Driver App
+                        </a>
                     </div>
                 </div>
 

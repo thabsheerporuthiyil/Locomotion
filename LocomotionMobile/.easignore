@@ -1,0 +1,33 @@
+# Keep the EAS upload lean by excluding local-only dependencies, caches,
+# generated native build artifacts, and editor files.
+/node_modules
+/.expo
+/.gradle-local
+/.vscode
+
+/android
+/ios
+
+android/.gradle/
+android/build/
+android/app/build/
+android/app/.cxx/
+android/local.properties
+android/hs_err_pid*.log
+android/replay_pid*.log
+
+/dist
+/web-build
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.log
+
+.DS_Store
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
