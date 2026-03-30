@@ -45,7 +45,7 @@ appConfig:
   awsStorageBucketName: locomotion-media
   awsMediaUrlExpireSeconds: "3600"
   llmProvider: gemini
-  aiServiceUrl: https://your-space-name.hf.space
+  aiServiceUrl: https://thabsheeeeer-locomotion-ai.hf.space
   sqsQueueUrl: https://sqs.ap-south-1.amazonaws.com/471914528467/locomotion-notifications
   firebaseServiceAccountPath: /var/secrets/firebase/firebase-service-account.json
   aiAllowedOrigins:
