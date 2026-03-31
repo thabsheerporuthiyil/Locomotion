@@ -28,12 +28,14 @@ appConfig:
     - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
     - http://locomotion-api.duckdns.org
     - https://locomotion-api.duckdns.org
+    - https://locomotionride.vercel.app
   csrfTrustedOrigins:
     - http://localhost:5173
     - http://3.109.231.187
     - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
     - http://locomotion-api.duckdns.org
     - https://locomotion-api.duckdns.org
+    - https://locomotionride.vercel.app
   googleClientId: 1096933293116-39tk0046n27e10gn87evv4ihee40q8qp.apps.googleusercontent.com
   googleAndroidClientId: 1096933293116-jmsndspcrcss1m5pb2jlpdpuvjp4val9.apps.googleusercontent.com
   googleIosClientId: 1096933293116-6bvf71fh3c88brbhrmke9hto6q46c36s.apps.googleusercontent.com
@@ -58,6 +60,7 @@ appConfig:
     - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
     - http://locomotion-api.duckdns.org
     - https://locomotion-api.duckdns.org
+    - https://locomotionride.vercel.app
   qdrantHost: ""
   qdrantPort: "6333"
 
