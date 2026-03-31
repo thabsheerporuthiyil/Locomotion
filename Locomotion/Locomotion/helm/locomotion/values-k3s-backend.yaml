@@ -43,8 +43,8 @@ appConfig:
   emailPort: "587"
   emailUseTls: "True"
   defaultFromEmail: locomotiondrivers@gmail.com
-  sessionCookieSameSite: Lax
-  csrfCookieSameSite: Lax
+  sessionCookieSameSite: None
+  csrfCookieSameSite: None
   razorpayKeyId: rzp_test_RzhW17wdnjByQf
   useS3: true
   awsRegion: ap-south-1
