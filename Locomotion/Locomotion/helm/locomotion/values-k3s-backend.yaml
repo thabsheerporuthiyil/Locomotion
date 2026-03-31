@@ -49,12 +49,12 @@ appConfig:
   useS3: true
   awsRegion: ap-south-1
   awsS3Region: eu-north-1
-  awsSqsRegion: ap-south-1
+  awsSqsRegion: eu-north-1
   awsStorageBucketName: locomotion-media
   awsMediaUrlExpireSeconds: "3600"
   llmProvider: gemini
   aiServiceUrl: https://thabsheeeeer-locomotion-ai.hf.space
-  sqsQueueUrl: https://sqs.ap-south-1.amazonaws.com/471914528467/locomotion-notifications
+  sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/471914528467/locomotion-notifications
   firebaseServiceAccountPath: /var/secrets/firebase/firebase-service-account.json
   aiAllowedOrigins:
     - http://localhost:5173
