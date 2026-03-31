@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { requestFirebaseNotificationPermission, onMessageListener } from "../firebase";
 
-const DRIVER_APP_INSTALL_URL = "https://expo.dev/accounts/thabsheerporuthiyil/projects/LocomotionMobile/builds/0a898618-9cf7-4787-bcf0-ae811f05bf7c";
+const DRIVER_APP_INSTALL_URL = "https://expo.dev/accounts/thabsheerporuthiyil/projects/LocomotionMobile/builds/f118a1e8-f486-499b-a522-85289dabecf2";
 
 export default function DriverDashboard() {
     const { name } = useAuthStore();
