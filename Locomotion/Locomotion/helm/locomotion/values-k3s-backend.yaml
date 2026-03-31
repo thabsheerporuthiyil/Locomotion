@@ -48,6 +48,8 @@ appConfig:
   razorpayKeyId: rzp_test_RzhW17wdnjByQf
   useS3: true
   awsRegion: ap-south-1
+  awsS3Region: eu-north-1
+  awsSqsRegion: ap-south-1
   awsStorageBucketName: locomotion-media
   awsMediaUrlExpireSeconds: "3600"
   llmProvider: gemini

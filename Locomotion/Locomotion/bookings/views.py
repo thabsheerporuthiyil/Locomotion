@@ -259,7 +259,11 @@ class CreateRideRequestView(APIView):
                 try:
                     sqs = boto3.client(
                         "sqs",
-                        region_name=getattr(settings, "AWS_REGION", "ap-south-1"),
+                        region_name=getattr(
+                            settings,
+                            "AWS_SQS_REGION",
+                            getattr(settings, "AWS_REGION", "ap-south-1"),
+                        ),
                         aws_access_key_id=getattr(settings, "AWS_ACCESS_KEY_ID", None),
                         aws_secret_access_key=getattr(
                             settings, "AWS_SECRET_ACCESS_KEY", None
@@ -581,7 +585,11 @@ class RideRequestActionView(APIView):
                 try:
                     sqs = boto3.client(
                         "sqs",
-                        region_name=getattr(settings, "AWS_REGION", "ap-south-1"),
+                        region_name=getattr(
+                            settings,
+                            "AWS_SQS_REGION",
+                            getattr(settings, "AWS_REGION", "ap-south-1"),
+                        ),
                         aws_access_key_id=getattr(settings, "AWS_ACCESS_KEY_ID", None),
                         aws_secret_access_key=getattr(
                             settings, "AWS_SECRET_ACCESS_KEY", None
@@ -827,7 +835,11 @@ class SendMessageView(APIView):
                 try:
                     sqs = boto3.client(
                         "sqs",
-                        region_name=getattr(settings, "AWS_REGION", "ap-south-1"),
+                        region_name=getattr(
+                            settings,
+                            "AWS_SQS_REGION",
+                            getattr(settings, "AWS_REGION", "ap-south-1"),
+                        ),
                         aws_access_key_id=getattr(settings, "AWS_ACCESS_KEY_ID", None),
                         aws_secret_access_key=getattr(
                             settings, "AWS_SECRET_ACCESS_KEY", None

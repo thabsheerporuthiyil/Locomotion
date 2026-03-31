@@ -302,7 +302,10 @@ if USE_S3:
     AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
     AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME")
-    AWS_S3_REGION_NAME = os.environ.get("AWS_REGION", "eu-north-1")
+    AWS_S3_REGION_NAME = os.environ.get(
+        "AWS_S3_REGION",
+        os.environ.get("AWS_REGION", "eu-north-1"),
+    )
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
     AWS_S3_OBJECT_PARAMETERS = {"CacheControl": "max-age=86400"}
@@ -364,7 +367,8 @@ RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
 # AWS SQS Configuration
-AWS_REGION = os.environ.get("AWS_REGION")
+AWS_SQS_REGION = os.environ.get("AWS_SQS_REGION", os.environ.get("AWS_REGION"))
+AWS_REGION = AWS_SQS_REGION
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_SQS_QUEUE_URL = os.environ.get("AWS_SQS_QUEUE_URL", "")

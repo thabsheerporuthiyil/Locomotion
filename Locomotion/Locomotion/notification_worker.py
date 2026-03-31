@@ -31,7 +31,7 @@ except Exception as e:
     exit(1)
 
 # AWS SQS Configuration
-AWS_REGION = os.environ.get("AWS_REGION")
+AWS_SQS_REGION = os.environ.get("AWS_SQS_REGION", os.environ.get("AWS_REGION"))
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 AWS_SQS_QUEUE_URL = os.environ.get("AWS_SQS_QUEUE_URL")
@@ -43,7 +43,7 @@ if not all([AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_SQS_QUEUE_URL]):
 
 sqs = boto3.client(
     "sqs",
-    region_name=AWS_REGION,
+    region_name=AWS_SQS_REGION,
     aws_access_key_id=AWS_ACCESS_KEY_ID,
     aws_secret_access_key=AWS_SECRET_ACCESS_KEY
 )

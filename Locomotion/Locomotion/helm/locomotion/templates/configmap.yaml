@@ -22,6 +22,8 @@ data:
   RAZORPAY_KEY_ID: {{ .Values.appConfig.razorpayKeyId | quote }}
   USE_S3: {{ ternary "True" "False" .Values.appConfig.useS3 | quote }}
   AWS_REGION: {{ .Values.appConfig.awsRegion | quote }}
+  AWS_S3_REGION: {{ default .Values.appConfig.awsRegion .Values.appConfig.awsS3Region | quote }}
+  AWS_SQS_REGION: {{ default .Values.appConfig.awsRegion .Values.appConfig.awsSqsRegion | quote }}
   AWS_STORAGE_BUCKET_NAME: {{ .Values.appConfig.awsStorageBucketName | quote }}
   AWS_MEDIA_URL_EXPIRE_SECONDS: {{ .Values.appConfig.awsMediaUrlExpireSeconds | quote }}
   LLM_PROVIDER: {{ .Values.appConfig.llmProvider | quote }}

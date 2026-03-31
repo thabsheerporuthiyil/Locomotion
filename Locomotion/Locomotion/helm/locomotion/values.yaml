@@ -50,6 +50,8 @@ appConfig:
   razorpayKeyId: ""
   useS3: true
   awsRegion: ap-south-1
+  awsS3Region: ""
+  awsSqsRegion: ""
   awsStorageBucketName: ""
   awsMediaUrlExpireSeconds: "3600"
   llmProvider: gemini
