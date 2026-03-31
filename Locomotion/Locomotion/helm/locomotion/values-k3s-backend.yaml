@@ -18,7 +18,7 @@ fastapiAiServiceAccount:
   create: false
 
 appConfig:
-  djangoEnv: development
+  djangoEnv: staging
   debug: false
   allowedHosts:
     - "*"
