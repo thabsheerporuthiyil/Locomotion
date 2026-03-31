@@ -268,6 +268,7 @@ export default function HomeScreen() {
         setLocation(initialLoc);
         latestLocationRef.current = initialLoc;
         sendLocation(initialLoc.coords);
+        persistLocationUpdate(rideId, initialLoc.coords);
         locationSubscription.current?.remove();
         locationSubscription.current = null;
 
@@ -277,6 +278,7 @@ export default function HomeScreen() {
                 setLocation(newLoc);
                 latestLocationRef.current = newLoc;
                 sendLocation(newLoc.coords);
+                persistLocationUpdate(rideId, newLoc.coords);
             }
         );
     };
@@ -290,6 +292,27 @@ export default function HomeScreen() {
             longitude: coords.longitude,
             heading: coords.heading || 0
         }));
+    };
+
+    const persistLocationUpdate = async (rideId, coords) => {
+        if (!rideId || !coords || !userRef.current?.token) return;
+
+        try {
+            await fetch(`${BASE_URL}/api/location/rides/${rideId}/update/`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${userRef.current.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    latitude: coords.latitude,
+                    longitude: coords.longitude,
+                    heading: coords.heading || 0,
+                }),
+            });
+        } catch (error) {
+            console.log("Driver location POST fallback error:", error?.message || error);
+        }
     };
 
     const scheduleReconnect = (rideId) => {
@@ -316,6 +339,7 @@ export default function HomeScreen() {
             setIsConnected(true);
             const latestCoords = latestLocationRef.current?.coords || latestLocationRef.current;
             sendLocation(latestCoords);
+            persistLocationUpdate(rideId, latestCoords);
         };
         ws.current.onerror = (error) => {
             console.log("Driver websocket error:", error?.message || error);
