@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X } from 'lucide-react';
+import api from '../api/axios';
 import { API_ORIGIN } from '../utils/api_base';
 
 // Custom Map Car Icon
@@ -26,8 +27,10 @@ function MapUpdater({ driverLocation }) {
 export default function LiveTrackingMap({ rideId, onClose }) {
     const [driverLocation, setDriverLocation] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
+    const [connectionError, setConnectionError] = useState('');
     const wsRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
+    const pollingIntervalRef = useRef(null);
     const shouldReconnectRef = useRef(true);
 
     const buildWebSocketUrl = () => {
@@ -47,6 +50,27 @@ export default function LiveTrackingMap({ rideId, onClose }) {
     useEffect(() => {
         shouldReconnectRef.current = true;
 
+        const fetchLatestLocation = async () => {
+            try {
+                const response = await api.get(`location/rides/${rideId}/latest/`);
+                const latestDriverLocation = response.data?.driver_location;
+
+                if (
+                    latestDriverLocation &&
+                    latestDriverLocation.latitude != null &&
+                    latestDriverLocation.longitude != null
+                ) {
+                    setDriverLocation({
+                        latitude: latestDriverLocation.latitude,
+                        longitude: latestDriverLocation.longitude,
+                        heading: latestDriverLocation.heading || 0,
+                    });
+                }
+            } catch (error) {
+                console.error('Latest location fetch failed:', error);
+            }
+        };
+
         const connect = () => {
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
@@ -64,6 +88,7 @@ export default function LiveTrackingMap({ rideId, onClose }) {
             socket.onopen = () => {
                 console.log("WebSocket connected for ride:", rideId);
                 setIsConnected(true);
+                setConnectionError('');
             };
 
             socket.onclose = () => {
@@ -74,12 +99,17 @@ export default function LiveTrackingMap({ rideId, onClose }) {
 
             socket.onerror = (error) => {
                 console.error("WS Error:", error);
+                setConnectionError('Live websocket unavailable. Falling back to periodic updates.');
             };
 
             socket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    if (data.role === 'driver' && data.latitude && data.longitude) {
+                    if (
+                        data.role === 'driver' &&
+                        data.latitude != null &&
+                        data.longitude != null
+                    ) {
                         setDriverLocation({
                             latitude: data.latitude,
                             longitude: data.longitude,
@@ -92,12 +122,18 @@ export default function LiveTrackingMap({ rideId, onClose }) {
             };
         };
 
+        fetchLatestLocation();
+        pollingIntervalRef.current = setInterval(fetchLatestLocation, 5000);
         connect();
 
         return () => {
             shouldReconnectRef.current = false;
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
+            }
+            if (pollingIntervalRef.current) {
+                clearInterval(pollingIntervalRef.current);
+                pollingIntervalRef.current = null;
             }
             if (wsRef.current) {
                 wsRef.current.onclose = null;
@@ -121,6 +157,9 @@ export default function LiveTrackingMap({ rideId, onClose }) {
                                 {isConnected ? "Connected to Driver" : "Connecting..."}
                             </span>
                         </div>
+                        {connectionError ? (
+                            <p className="text-xs font-medium text-amber-300 mt-2">{connectionError}</p>
+                        ) : null}
                     </div>
                     <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors relative z-10 text-slate-400 hover:text-white">
                         <X size={24} />
