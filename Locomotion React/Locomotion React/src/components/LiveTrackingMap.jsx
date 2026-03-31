@@ -28,6 +28,7 @@ export default function LiveTrackingMap({ rideId, onClose }) {
     const [driverLocation, setDriverLocation] = useState(null);
     const [isConnected, setIsConnected] = useState(false);
     const [connectionError, setConnectionError] = useState('');
+    const [isFallbackActive, setIsFallbackActive] = useState(false);
     const wsRef = useRef(null);
     const reconnectTimeoutRef = useRef(null);
     const pollingIntervalRef = useRef(null);
@@ -65,6 +66,8 @@ export default function LiveTrackingMap({ rideId, onClose }) {
                         longitude: latestDriverLocation.longitude,
                         heading: latestDriverLocation.heading || 0,
                     });
+                    setIsFallbackActive(true);
+                    setConnectionError('');
                 }
             } catch (error) {
                 console.error('Latest location fetch failed:', error);
@@ -88,6 +91,7 @@ export default function LiveTrackingMap({ rideId, onClose }) {
             socket.onopen = () => {
                 console.log("WebSocket connected for ride:", rideId);
                 setIsConnected(true);
+                setIsFallbackActive(false);
                 setConnectionError('');
             };
 
@@ -99,7 +103,9 @@ export default function LiveTrackingMap({ rideId, onClose }) {
 
             socket.onerror = (error) => {
                 console.error("WS Error:", error);
-                setConnectionError('Live websocket unavailable. Falling back to periodic updates.');
+                if (!driverLocation) {
+                    setConnectionError('Live websocket unavailable. Falling back to periodic updates.');
+                }
             };
 
             socket.onmessage = (event) => {
@@ -123,7 +129,7 @@ export default function LiveTrackingMap({ rideId, onClose }) {
         };
 
         fetchLatestLocation();
-        pollingIntervalRef.current = setInterval(fetchLatestLocation, 5000);
+        pollingIntervalRef.current = setInterval(fetchLatestLocation, 1000);
         connect();
 
         return () => {
@@ -142,6 +148,13 @@ export default function LiveTrackingMap({ rideId, onClose }) {
         };
     }, [rideId]);
 
+    const trackingReady = isConnected || isFallbackActive || Boolean(driverLocation);
+    const statusText = isConnected
+        ? "Connected to Driver"
+        : trackingReady
+            ? "Tracking driver location"
+            : "Connecting...";
+
     return (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
             <div className="bg-slate-900 border border-indigo-500/30 rounded-[2rem] w-full max-w-4xl h-[80vh] shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col animate-in fade-in zoom-in duration-300 relative">
@@ -152,12 +165,12 @@ export default function LiveTrackingMap({ rideId, onClose }) {
                     <div className="relative z-10">
                         <h2 className="text-xl font-black text-white tracking-tight">Live Driver Tracking</h2>
                         <div className="flex items-center gap-2 mt-1">
-                            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse'}`}></span>
+                            <span className={`w-2 h-2 rounded-full ${trackingReady ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]' : 'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse'}`}></span>
                             <span className="text-sm font-semibold text-slate-400">
-                                {isConnected ? "Connected to Driver" : "Connecting..."}
+                                {statusText}
                             </span>
                         </div>
-                        {connectionError ? (
+                        {connectionError && !trackingReady ? (
                             <p className="text-xs font-medium text-amber-300 mt-2">{connectionError}</p>
                         ) : null}
                     </div>
