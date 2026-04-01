@@ -2,6 +2,9 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE } from "../utils/api_base";
 import { Star } from "lucide-react";
 
+const FALLBACK_AVATAR =
+  "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 240'%3E%3Crect width='400' height='240' fill='%230f172a'/%3E%3Ccircle cx='200' cy='92' r='42' fill='%23334155'/%3E%3Cpath d='M122 216c18-42 56-64 78-64s60 22 78 64' fill='%23334155'/%3E%3C/svg%3E";
+
 
 export default function DriverCard({ driver }) {
   const navigate = useNavigate();
@@ -11,7 +14,7 @@ export default function DriverCard({ driver }) {
     ? (driver.profile_image.startsWith("http")
       ? driver.profile_image
       : `${API_BASE}${driver.profile_image}`)
-    : "/default-avatar.png";
+    : FALLBACK_AVATAR;
 
   return (
     <div
@@ -23,7 +26,7 @@ export default function DriverCard({ driver }) {
         <img
           src={imageUrl}
           alt={driver?.name || "Driver"}
-          onError={(e) => (e.target.src = "/default-avatar.png")}
+          onError={(e) => (e.target.src = FALLBACK_AVATAR)}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
 

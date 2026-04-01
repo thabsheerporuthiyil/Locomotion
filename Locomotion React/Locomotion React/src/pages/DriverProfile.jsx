@@ -5,6 +5,9 @@ import { API_BASE } from "../utils/api_base";
 import RequestRidePopup from "../components/RequestRidePopup";
 import { Star } from "lucide-react";
 
+const FALLBACK_AVATAR =
+  "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 400'%3E%3Crect width='400' height='400' fill='%230f172a'/%3E%3Ccircle cx='200' cy='150' r='70' fill='%23334155'/%3E%3Cpath d='M88 338c28-68 88-104 112-104s84 36 112 104' fill='%23334155'/%3E%3C/svg%3E";
+
 export default function DriverProfile() {
   const { id } = useParams();
   const [driver, setDriver] = useState(null);
@@ -36,7 +39,8 @@ export default function DriverProfile() {
                 ? (driver.profile_image.startsWith("http")
                   ? driver.profile_image
                   : `${API_BASE}${driver.profile_image}`)
-                : "/default-avatar.png"}
+                : FALLBACK_AVATAR}
+              onError={(e) => (e.target.src = FALLBACK_AVATAR)}
               className="w-32 h-32 md:w-40 md:h-40 rounded-3xl object-cover shadow-2xl border border-white/10"
             />
             {/* Overlay Gradient */}

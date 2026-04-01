@@ -6,8 +6,9 @@ class MediaStorage(S3Boto3Storage):
     location = "media"
     default_acl = None
     file_overwrite = False
-    querystring_auth = True
+    querystring_auth = getattr(settings, "AWS_QUERYSTRING_AUTH", False)
     querystring_expire = getattr(settings, "AWS_MEDIA_URL_EXPIRE_SECONDS", 3600)
+    region_name = getattr(settings, "AWS_S3_REGION_NAME", None)
     custom_domain = (
         getattr(settings, "AWS_S3_CUSTOM_DOMAIN", None)
         or (

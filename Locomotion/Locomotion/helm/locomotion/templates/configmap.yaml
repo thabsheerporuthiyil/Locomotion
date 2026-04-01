@@ -26,6 +26,7 @@ data:
   AWS_SQS_REGION: {{ default .Values.appConfig.awsRegion .Values.appConfig.awsSqsRegion | quote }}
   AWS_STORAGE_BUCKET_NAME: {{ .Values.appConfig.awsStorageBucketName | quote }}
   AWS_MEDIA_URL_EXPIRE_SECONDS: {{ .Values.appConfig.awsMediaUrlExpireSeconds | quote }}
+  AWS_QUERYSTRING_AUTH: {{ ternary "True" "False" .Values.appConfig.awsQuerystringAuth | quote }}
   LLM_PROVIDER: {{ .Values.appConfig.llmProvider | quote }}
   AI_SERVICE_URL: {{ default (printf "http://%s-fastapi-ai:%d" (include "locomotion.fullname" .) (int .Values.fastapiAi.service.port)) .Values.appConfig.aiServiceUrl | quote }}
   AWS_SQS_QUEUE_URL: {{ .Values.appConfig.sqsQueueUrl | quote }}

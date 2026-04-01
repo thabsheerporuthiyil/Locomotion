@@ -312,7 +312,7 @@ if USE_S3:
     AWS_MEDIA_URL_EXPIRE_SECONDS = int(
         os.environ.get("AWS_MEDIA_URL_EXPIRE_SECONDS", "3600")
     )
-    AWS_QUERYSTRING_AUTH = _env_bool("AWS_QUERYSTRING_AUTH", True)
+    AWS_QUERYSTRING_AUTH = _env_bool("AWS_QUERYSTRING_AUTH", False)
     AWS_S3_SIGNATURE_VERSION = "s3v4"
     STORAGES = {
         "default": {

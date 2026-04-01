@@ -52,6 +52,7 @@ appConfig:
   awsSqsRegion: eu-north-1
   awsStorageBucketName: locomotion-media
   awsMediaUrlExpireSeconds: "3600"
+  awsQuerystringAuth: false
   llmProvider: gemini
   aiServiceUrl: https://thabsheeeeer-locomotion-ai.hf.space
   sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/471914528467/locomotion-notifications
