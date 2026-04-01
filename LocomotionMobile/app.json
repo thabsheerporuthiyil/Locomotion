@@ -15,6 +15,11 @@
     "android": {
       "package": "com.locomotion.driver",
       "usesCleartextTraffic": true,
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCK6qUXa5zJ49UqXic1po9WyFc7hoeWhxo"
+        }
+      },
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

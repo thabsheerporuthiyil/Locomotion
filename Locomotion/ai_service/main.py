@@ -345,34 +345,28 @@ def _payload_text(payload: dict) -> str:
 
 def _retrieve_and_rank(query: str, limit: int, only_available: bool = False) -> list[tuple[int, float, dict]]:
     query_vector = encoder.encode(query).tolist()
-    
-    # Optional filter for availability
-    filter_obj = None
-    if only_available:
-        from qdrant_client.http import models as rest
-        filter_obj = rest.Filter(
-            must=[
-                rest.FieldCondition(
-                    key="is_available",
-                    match=rest.MatchValue(value=True),
-                )
-            ]
-        )
+
+    # Qdrant Cloud rejects filtering on unindexed bool payloads. Pull a wider
+    # candidate set and apply availability filtering in Python instead.
+    search_limit = max(limit * 5, 50) if only_available else limit
 
     search_results = qdrant.search(
         collection_name=COLLECTION_NAME,
         query_vector=query_vector,
-        query_filter=filter_obj,
-        limit=limit,
+        limit=search_limit,
     )
 
     ranked: list[tuple[int, float, dict]] = []
     for match in search_results or []:
         payload = match.payload or {}
+        if only_available and not payload.get("is_available", True):
+            continue
         driver_id = payload.get("driver_id")
         if driver_id is None:
             continue
         ranked.append((int(driver_id), float(match.score), payload))
+        if len(ranked) >= limit:
+            break
     return ranked
 
 def _match_drivers_retrieval_first(query: str, retrieve_limit: int = 20, recommend_limit: int = 3) -> tuple[list[int], str, str, list[dict]]:

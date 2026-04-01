@@ -157,12 +157,6 @@ migrations:
 
 postgresql:
   enabled: false
-  auth:
-    database: locomotion
-    username: postgres
-  persistence:
-    enabled: true
-    size: 5Gi
 
 redis:
   enabled: false
