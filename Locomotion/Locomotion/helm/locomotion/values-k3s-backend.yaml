@@ -55,6 +55,14 @@ appConfig:
   llmProvider: gemini
   aiServiceUrl: https://thabsheeeeer-locomotion-ai.hf.space
   sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/471914528467/locomotion-notifications
+  postgresDb: locomotion
+  postgresUser: locomotion
+  postgresHost: locomotion-db.crag8242ki8l.ap-south-1.rds.amazonaws.com
+  postgresPort: "5432"
+  postgresSslMode: require
+  redisCacheUrl: redis://locomotion-redis.xuyqu5.ng.0001.aps1.cache.amazonaws.com:6379/1
+  channelRedisUrl: redis://locomotion-redis.xuyqu5.ng.0001.aps1.cache.amazonaws.com:6379/1
+  celeryBrokerUrl: redis://locomotion-redis.xuyqu5.ng.0001.aps1.cache.amazonaws.com:6379/0
   firebaseServiceAccountPath: /var/secrets/firebase/firebase-service-account.json
   aiAllowedOrigins:
     - http://localhost:5173
@@ -147,7 +155,7 @@ migrations:
   enabled: true
 
 postgresql:
-  enabled: true
+  enabled: false
   auth:
     database: locomotion
     username: postgres
@@ -156,7 +164,7 @@ postgresql:
     size: 5Gi
 
 redis:
-  enabled: true
+  enabled: false
 
 qdrant:
   enabled: false
