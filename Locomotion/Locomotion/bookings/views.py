@@ -171,6 +171,18 @@ class CalculateFareView(APIView):
 class CreateRideRequestView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _normalize_serializer_errors(errors):
+        if (
+            "error" in errors
+            and isinstance(errors["error"], list)
+            and len(errors["error"]) == 1
+        ):
+            normalized = dict(errors)
+            normalized["error"] = errors["error"][0]
+            return normalized
+        return errors
+
     @swagger_auto_schema(
         operation_description="Create a new ride request",
         request_body=RideRequestCreateSerializer,
@@ -186,7 +198,9 @@ class CreateRideRequestView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        serializer = RideRequestCreateSerializer(data=request.data)
+        serializer = RideRequestCreateSerializer(
+            data=request.data, context={"request": request}
+        )
         if serializer.is_valid():
 
             if not user.phone_number and provided_phone:
@@ -303,7 +317,10 @@ class CreateRideRequestView(APIView):
                     print(f"Failed to send SQS notification: {e}")
 
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            self._normalize_serializer_errors(serializer.errors),
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
 
 # List ride requests for drivers

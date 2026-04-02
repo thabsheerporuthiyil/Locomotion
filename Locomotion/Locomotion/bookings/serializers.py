@@ -91,6 +91,20 @@ class RideRequestCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate(self, data):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        driver = data.get("driver")
+
+        if (
+            user
+            and getattr(user, "is_authenticated", False)
+            and hasattr(user, "driver_profile")
+            and driver == user.driver_profile
+        ):
+            raise serializers.ValidationError(
+                {"error": "You cannot book a ride with yourself."}
+            )
+
         required_fields = {
             "source_lat": "Pickup location",
             "source_lng": "Pickup location",

@@ -65,6 +65,15 @@ class ApplyDriverView(APIView):
 
 
 class DriverListView(APIView):
+    def _exclude_requesting_driver(self, request, drivers_data):
+        if not getattr(request.user, "is_authenticated", False):
+            return drivers_data
+
+        driver_profile = getattr(request.user, "driver_profile", None)
+        if not driver_profile:
+            return drivers_data
+
+        return [driver for driver in drivers_data if driver.get("id") != driver_profile.id]
 
     def get(self, request):
         from django.core.cache import cache
@@ -79,8 +88,9 @@ class DriverListView(APIView):
         cached_data = cache.get(cache_key)
         if cached_data:
             print(f"DEBUG: Redis Cache HIT for key {cache_key}")
+            response_data = self._exclude_requesting_driver(request, cached_data)
             return Response(
-                cached_data,
+                response_data,
                 status=status.HTTP_200_OK,
                 headers={
                     "X-Cache": "HIT",
@@ -118,12 +128,14 @@ class DriverListView(APIView):
         serializer = DriverListSerializer(
             queryset, many=True, context={"request": request}
         )
+        serialized_data = serializer.data
 
         # Cache the serialized data for 60 seconds
-        cache.set(cache_key, serializer.data, timeout=60)
+        cache.set(cache_key, serialized_data, timeout=60)
+        response_data = self._exclude_requesting_driver(request, serialized_data)
 
         return Response(
-            serializer.data,
+            response_data,
             status=status.HTTP_200_OK,
             headers={
                 "X-Cache": "MISS",

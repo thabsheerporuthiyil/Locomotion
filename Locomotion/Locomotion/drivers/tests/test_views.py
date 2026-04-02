@@ -29,6 +29,18 @@ class DriverViewTests(APITestCase):
             service_type="driver_only",
             panchayath=panchayath,
         )
+        self.other_user = User.objects.create_user(
+            email="other-driver@test.com",
+            password="password123",
+            name="Other Driver",
+        )
+        self.other_driver = DriverProfile.objects.create(
+            user=self.other_user,
+            phone_number="8888888888",
+            experience_years=4,
+            service_type="driver_only",
+            panchayath=panchayath,
+        )
 
     def test_driver_list_view(self):
         url = reverse("driver-list")
@@ -36,6 +48,17 @@ class DriverViewTests(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+    
+    def test_driver_list_excludes_authenticated_driver_profile(self):
+        url = reverse("driver-list")
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        driver_ids = [driver["id"] for driver in response.data]
+        self.assertNotIn(self.driver.id, driver_ids)
+        self.assertIn(self.other_driver.id, driver_ids)
 
     def test_driver_detail_view(self):
         url = reverse("driver-detail", args=[self.driver.id])

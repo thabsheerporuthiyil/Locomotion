@@ -63,6 +63,31 @@ class CreateRideRequestTest(APITestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(RideRequest.objects.count(), 1)
 
+    def test_driver_cannot_book_themselves(self):
+
+        self.client.force_authenticate(user=self.driver.user)
+
+        url = "/api/bookings/request/"
+
+        data = {
+            "driver": self.driver.id,
+            "source_location": "Calicut",
+            "source_lat": 11.25,
+            "source_lng": 75.78,
+            "destination_location": "Kozhikode Beach",
+            "destination_lat": 11.26,
+            "destination_lng": 75.77,
+            "distance_km": 5,
+            "estimated_fare": 100,
+        }
+
+        response = self.client.post(url, data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["error"], "You cannot book a ride with yourself."
+        )
+
 
 class RideActionTest(APITestCase):
 
