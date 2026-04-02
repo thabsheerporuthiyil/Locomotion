@@ -17,7 +17,7 @@ class DriverCoachApplyTests(APITestCase):
         self.user = User.objects.create_user(
             email="drivercoach@test.com", password="password123", name="Driver Coach"
         )
-        self.client.login(email="drivercoach@test.com", password="password123")
+        self.client.force_authenticate(user=self.user)
 
         district = District.objects.create(name="Malappuram")
         taluk = Taluk.objects.create(name="Tirur", district=district)
@@ -67,7 +67,7 @@ class DriverCoachRemindersTests(APITestCase):
             password="password123",
             name="Driver Reminders",
         )
-        self.client.login(email="driverreminders@test.com", password="password123")
+        self.client.force_authenticate(user=self.user)
 
         district = District.objects.create(name="Kozhikode")
         taluk = Taluk.objects.create(name="Koyilandy", district=district)
@@ -95,7 +95,7 @@ class DriverCoachPlanFallbackTests(APITestCase):
             password="password123",
             name="Driver Plan Fallback",
         )
-        self.client.login(email="driverplanfallback@test.com", password="password123")
+        self.client.force_authenticate(user=self.user)
 
         district = District.objects.create(name="Palakkad")
         taluk = Taluk.objects.create(name="Alathur", district=district)
