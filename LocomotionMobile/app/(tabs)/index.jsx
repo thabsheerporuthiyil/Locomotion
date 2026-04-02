@@ -7,7 +7,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { BASE_URL, WS_URL as WS_BASE_URL } from '@/constants/Config';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
     const { user, refreshToken } = useAuth();
@@ -49,7 +49,47 @@ export default function HomeScreen() {
     const currentRideIdRef = useRef(currentRideId);
 
     // --- INITIALIZATION & FOCUS HANDLING ---
+    const startPolling = () => {
+        if (pollingInterval.current) return;
+        checkForRequests();
+        pollingInterval.current = setInterval(checkForRequests, 5000);
+    };
+
+    const stopChatPolling = useCallback(() => {
+        if (chatPollingInterval.current) {
+            clearInterval(chatPollingInterval.current);
+            chatPollingInterval.current = null;
+        }
+    }, []);
+
+    const stopPolling = useCallback(() => {
+        if (pollingInterval.current) {
+            clearInterval(pollingInterval.current);
+            pollingInterval.current = null;
+        }
+        stopChatPolling();
+    }, [stopChatPolling]);
+
+    const stopTracking = useCallback(() => {
+        shouldReconnect.current = false;
+        if (reconnectTimeout.current) {
+            clearTimeout(reconnectTimeout.current);
+            reconnectTimeout.current = null;
+        }
+        locationSubscription.current?.remove();
+        locationSubscription.current = null;
+        if (ws.current) {
+            ws.current.onclose = null;
+            ws.current.close();
+            ws.current = null;
+        }
+        setRiderLocation(null);
+        setIsConnected(false);
+        latestLocationRef.current = null;
+    }, []);
+
     useFocusEffect(
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         useCallback(() => {
             startPolling();
             return () => {
@@ -68,21 +108,7 @@ export default function HomeScreen() {
     }, [currentRideId]);
 
     // --- POLLING LOGIC ---
-    const startPolling = () => {
-        if (pollingInterval.current) return;
-        checkForRequests();
-        pollingInterval.current = setInterval(checkForRequests, 5000);
-    };
-
-    const stopPolling = () => {
-        if (pollingInterval.current) {
-            clearInterval(pollingInterval.current);
-            pollingInterval.current = null;
-        }
-        stopChatPolling();
-    };
-
-    const checkForRequests = async () => {
+    async function checkForRequests() {
         try {
             let currentToken = userRef.current?.token;
             if (!currentToken) return;
@@ -108,7 +134,7 @@ export default function HomeScreen() {
         } catch (e) {
             console.error("Polling Error:", e);
         }
-    };
+    }
 
     const handleRequests = (rides) => {
         // 1. Identify if there's an active (accepted/in-progress) ride
@@ -164,14 +190,7 @@ export default function HomeScreen() {
         chatPollingInterval.current = setInterval(fetchChatMessages, 3000);
     };
 
-    const stopChatPolling = () => {
-        if (chatPollingInterval.current) {
-            clearInterval(chatPollingInterval.current);
-            chatPollingInterval.current = null;
-        }
-    };
-
-    const fetchChatMessages = async () => {
+    async function fetchChatMessages() {
         if (!activeRide || !['accepted', 'arrived', 'in_progress'].includes(activeRide.status)) return;
         try {
             const res = await fetch(`${BASE_URL}/api/bookings/${activeRide.id}/chat/`, {
@@ -190,8 +209,9 @@ export default function HomeScreen() {
         } catch (e) {
             console.error("Chat error:", e);
         }
-    };
+    }
 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (activeRide && ['accepted', 'arrived', 'in_progress'].includes(activeRide.status)) {
             hasInitialChatFetch.current = false;
@@ -199,7 +219,7 @@ export default function HomeScreen() {
         } else {
             stopChatPolling();
         }
-    }, [activeRide?.status]);
+    }, [activeRide, startChatPolling, stopChatPolling]);
 
     const handleSendMessage = async () => {
         if (!newMessage.trim() || !activeRide) return;
@@ -249,7 +269,7 @@ export default function HomeScreen() {
                 Alert.alert("Action Failed", data.error || "Unknown error");
                 // Rollback if needed (handled by next poll usually)
             }
-        } catch (e) { 
+        } catch { 
             Alert.alert("Network Error"); 
         } finally {
             setIsActionLoading(false);
@@ -352,26 +372,8 @@ export default function HomeScreen() {
             try {
                 const data = JSON.parse(e.data);
                 if (data.role === 'rider') setRiderLocation(data);
-            } catch (err) {}
+            } catch {}
         };
-    };
-
-    const stopTracking = () => {
-        shouldReconnect.current = false;
-        if (reconnectTimeout.current) {
-            clearTimeout(reconnectTimeout.current);
-            reconnectTimeout.current = null;
-        }
-        locationSubscription.current?.remove();
-        locationSubscription.current = null;
-        if (ws.current) {
-            ws.current.onclose = null;
-            ws.current.close();
-            ws.current = null;
-        }
-        setRiderLocation(null);
-        setIsConnected(false);
-        latestLocationRef.current = null;
     };
 
     // --- RENDERS ---
