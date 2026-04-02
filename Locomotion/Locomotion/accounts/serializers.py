@@ -7,6 +7,7 @@ from .models import Notification, User
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(validators=[])
     confirm_password = serializers.CharField(write_only=True)
 
     class Meta:
