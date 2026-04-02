@@ -18,7 +18,9 @@ export default function ResetPassword() {
     try {
       await resetPassword(form);
       navigate("/login", { state: { message: "Password reset successfully! Please login." } });
-    } catch {}
+    } catch (resetError) {
+      console.error("Reset password failed:", resetError);
+    }
   };
 
   if (!form.email) {

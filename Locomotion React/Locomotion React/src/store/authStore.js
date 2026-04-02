@@ -77,7 +77,7 @@ export const useAuthStore = create((set, get) => ({
       await get().fetchMe();
 
       return true;
-    } catch (err) {
+    } catch {
       // If a fresh login completed while this old refresh request was still in flight,
       // do not wipe the newer auth state.
       if (get().access === accessAtStart) {

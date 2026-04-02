@@ -3,7 +3,7 @@ import api from "../api/axios";
 import { useAuthStore } from "../store/authStore";
 import { 
     Plus, Car, FileText, CheckCircle, Navigation, XCircle, 
-    Zap, ArrowUpRight, Calendar, ArrowRight, Brain, Info, AlertTriangle, RefreshCcw, Download, Smartphone
+    Zap, ArrowUpRight, Calendar, Brain, AlertTriangle, RefreshCcw, Download, Smartphone
 } from "lucide-react";
 import { requestFirebaseNotificationPermission, onMessageListener } from "../firebase";
 
@@ -35,18 +35,18 @@ export default function DriverDashboard() {
     const [isAvailable, setIsAvailable] = useState(true);
     const [availLoading, setAvailLoading] = useState(false);
 
-    const [coachDays, setCoachDays] = useState(14);
+    const [coachDays] = useState(14);
     const [coachGoal, setCoachGoal] = useState("maximize earnings");
     const [coachPlan, setCoachPlan] = useState(null);
-    const [coachLLMUsed, setCoachLLMUsed] = useState(false);
-    const [coachDebug, setCoachDebug] = useState("");
-    const [coachShowDebug, setCoachShowDebug] = useState(true);
+    const [, setCoachLLMUsed] = useState(false);
+    const [, setCoachDebug] = useState("");
+    const [coachShowDebug] = useState(true);
     const [coachLoading, setCoachLoading] = useState(false);
     const [coachError, setCoachError] = useState(null);
     const [reminders, setReminders] = useState([]);
-    const [remindersLoading, setRemindersLoading] = useState(false);
+    const [, setRemindersLoading] = useState(false);
     const [applyLoading, setApplyLoading] = useState(false);
-    const [applyResult, setApplyResult] = useState(null);
+    const [, setApplyResult] = useState(null);
     const isAppleDevice = /iPad|iPhone|iPod/i.test(window.navigator.userAgent);
 
     const formatDateTime = (iso) => {
@@ -152,7 +152,7 @@ export default function DriverDashboard() {
             .then((token) => {
                 if (token) api.post("accounts/update-fcm-token/", { fcm_token: token });
             }).catch((err) => console.error("Firebase permission error", err));
-        const unsubscribe = onMessageListener((payload) => {
+        const unsubscribe = onMessageListener(() => {
             fetchData();
             new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg").play().catch(() => {});
         });
@@ -226,7 +226,7 @@ export default function DriverDashboard() {
                             setWalletBalance(parseFloat(verifyRes.data.new_balance));
                             fetchData();
                         }
-                    } catch (err) { alert("Verification failed. Contact support."); }
+                    } catch { alert("Verification failed. Contact support."); }
                 },
                 prefill: { name }, theme: { color: "#4F46E5" }
             };

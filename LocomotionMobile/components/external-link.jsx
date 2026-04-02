@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { openBrowserAsync, WebBrowserPresentationStyle } from 'expo-web-browser';
+import { Linking } from 'react-native';
 
 export function ExternalLink({ href, ...rest }) {
   return (
@@ -11,10 +11,7 @@ export function ExternalLink({ href, ...rest }) {
         if (process.env.EXPO_OS !== 'web') {
           // Prevent the default behavior of linking to the default browser on native.
           event.preventDefault();
-          // Open the link in an in-app browser.
-          await openBrowserAsync(href, {
-            presentationStyle: WebBrowserPresentationStyle.AUTOMATIC,
-          });
+          await Linking.openURL(href);
         }
       }}
     />

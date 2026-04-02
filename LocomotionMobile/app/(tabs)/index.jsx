@@ -379,7 +379,7 @@ export default function HomeScreen() {
         <View style={styles.header}>
             <View>
                 <Text style={styles.greeting}>Hello, {user?.name || 'Partner'}</Text>
-                <Text style={styles.headerSub}>You're currently {appState === 'idle' ? 'waiting for rides' : 'on a mission'}</Text>
+                <Text style={styles.headerSub}>You&apos;re currently {appState === 'idle' ? 'waiting for rides' : 'on a mission'}</Text>
             </View>
             <TouchableOpacity onPress={() => router.push('/(tabs)/profile')} style={styles.profileBtn}>
                 <IconSymbol name="person.circle.fill" size={32} color="#fff" />

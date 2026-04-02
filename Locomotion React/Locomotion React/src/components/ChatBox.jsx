@@ -44,7 +44,7 @@ export default function ChatBox({ rideId, onClose }) {
                 });
                 // Optional: small tick sound for new message inside the active chat
                 const audio = new Audio("https://actions.google.com/sounds/v1/water/water_drop.ogg");
-                audio.play().catch(e => console.log("Audio blocked"));
+                audio.play().catch(() => console.log("Audio blocked"));
             }
         });
         // 2. Listen via BroadcastChannel (If App was briefly Backgrounded in Service Worker)

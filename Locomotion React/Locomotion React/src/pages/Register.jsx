@@ -21,7 +21,9 @@ export default function Register() {
     try {
       await register(form);
       navigate("/verify-otp", { state: { email: form.email } });
-    } catch { }
+    } catch (registerError) {
+      console.error("Registration failed:", registerError);
+    }
   };
 
   return (

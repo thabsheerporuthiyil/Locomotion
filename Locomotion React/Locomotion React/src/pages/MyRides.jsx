@@ -8,8 +8,6 @@ import LiveTrackingMap from "../components/LiveTrackingMap";
 export default function MyRides() {
     const [requests, setRequests] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [processingPayment, setProcessingPayment] = useState(false);
-
     // Chat / Tracking State
     const [activeChatRideId, setActiveChatRideId] = useState(null);
     const [trackingRideId, setTrackingRideId] = useState(null);
@@ -90,7 +88,7 @@ export default function MyRides() {
         const unsubscribe = onMessageListener((payload) => {
             fetchRequests(); // Refresh the board
             const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-            audio.play().catch(e => console.log("Audio play blocked"));
+            audio.play().catch(() => console.log("Audio play blocked"));
 
             // Check if it's a chat message and the chat box isn't currently open for this ride
             if (payload?.data?.type === "chat_message") {
@@ -110,7 +108,7 @@ export default function MyRides() {
         channel.onmessage = (event) => {
             fetchRequests(); // Refresh the board
             const audio = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
-            audio.play().catch(e => console.log("Audio play blocked"));
+            audio.play().catch(() => console.log("Audio play blocked"));
 
             if (event.data?.data?.type === "chat_message") {
                 const incomingRideId = parseInt(event.data.data.ride_id, 10);
@@ -145,10 +143,6 @@ export default function MyRides() {
             case 'cancelled': return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
             default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
         }
-    };
-
-    const handlePayment = async (rideId) => {
-        alert("Please pay the driver directly via Cash or UPI.");
     };
 
     const openRatingModal = (rideId) => {

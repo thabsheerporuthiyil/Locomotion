@@ -33,7 +33,9 @@ export default function Login() {
       } else {
         navigate("/");
       }
-    } catch { }
+    } catch (loginError) {
+      console.error("Login failed:", loginError);
+    }
   };
 
   return (
@@ -135,7 +137,9 @@ export default function Login() {
                 } else {
                   navigate("/");
                 }
-              } catch { }
+              } catch (googleError) {
+                console.error("Google login failed:", googleError);
+              }
             }}
             onError={() => {
               console.log("Google Login Failed");
