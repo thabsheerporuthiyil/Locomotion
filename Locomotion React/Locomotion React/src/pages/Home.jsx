@@ -65,13 +65,6 @@ export default function Home() {
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1.5 transition-transform" />
                 </button>
               </Link>
-              {!isDriver && (
-                <Link to="/register-driver" className="w-full sm:w-auto">
-                  <button className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white px-8 py-4 rounded-2xl font-bold text-lg transition-all duration-300 backdrop-blur-sm hover:border-white/20">
-                    Drive with Us
-                  </button>
-                </Link>
-              )}
             </div>
           </div>
 
