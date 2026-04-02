@@ -25,6 +25,57 @@ class RegisterViewTest(APITestCase):
         self.assertTrue(User.objects.filter(email="new@example.com").exists())
         mock_send_otp.assert_called_once()
 
+    @patch("accounts.views.send_otp_email.delay")
+    def test_register_reuses_unverified_user_and_resends_otp(self, mock_send_otp):
+        user = User.objects.create_user(
+            email="pending@example.com",
+            name="Pending User",
+            password="oldpassword123",
+        )
+        user.is_verified = False
+        user.save(update_fields=["is_verified"])
+
+        url = reverse("register")
+        data = {
+            "email": "pending@example.com",
+            "name": "Updated User",
+            "password": "newpassword123",
+            "confirm_password": "newpassword123",
+        }
+
+        response = self.client.post(url, data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(User.objects.filter(email="pending@example.com").count(), 1)
+        user.refresh_from_db()
+        self.assertEqual(user.name, "Updated User")
+        self.assertTrue(user.check_password("newpassword123"))
+        mock_send_otp.assert_called_once()
+
+    @patch("accounts.views.send_otp_email.delay")
+    def test_register_rejects_verified_existing_user(self, mock_send_otp):
+        user = User.objects.create_user(
+            email="verified@example.com",
+            name="Verified User",
+            password="password123",
+        )
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+
+        url = reverse("register")
+        data = {
+            "email": "verified@example.com",
+            "name": "Verified User",
+            "password": "password123",
+            "confirm_password": "password123",
+        }
+
+        response = self.client.post(url, data)
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "User already exists")
+        mock_send_otp.assert_not_called()
+
 
 class LoginTest(APITestCase):
 

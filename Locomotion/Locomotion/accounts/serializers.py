@@ -1,3 +1,5 @@
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from Locomotion.media_utils import build_media_url, validate_image_upload
@@ -13,8 +15,20 @@ class RegisterSerializer(serializers.ModelSerializer):
         extra_kwargs = {"password": {"write_only": True}}
 
     def validate(self, data):
+        data["name"] = (data.get("name") or "").strip()
+        data["email"] = (data.get("email") or "").strip().lower()
+
+        if not data["name"]:
+            raise serializers.ValidationError({"name": "Name is required."})
+
         if data["password"] != data["confirm_password"]:
-            raise serializers.ValidationError("Passwords do not match")
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+
+        try:
+            validate_password(data["password"])
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)})
+
         return data
 
     def create(self, validated_data):

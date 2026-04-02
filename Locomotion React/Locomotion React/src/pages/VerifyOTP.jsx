@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 
 export default function VerifyOTP() {
-  const { verifyOTP, loading, error } = useAuthStore();
+  const { verifyOTP, resendSignupOTP, loading, error } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const email = location.state?.email;
+  const email = useMemo(
+    () => location.state?.email || sessionStorage.getItem("pendingSignupEmail"),
+    [location.state]
+  );
+  const isRegisterFlow = location.state?.flow === "register" || sessionStorage.getItem("pendingSignupEmail") === email;
   const [otp, setOtp] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
 
   
   if (!email) {
@@ -36,10 +41,19 @@ export default function VerifyOTP() {
           navigate("/admin/dashboard", { replace: true });
         }, 100);
       } else {
-        navigate("/login");
+        navigate("/login", { replace: true });
       }
     } catch (err) {
       console.error("Verification failed", err);
+    }
+  };
+
+  const handleResend = async () => {
+    try {
+      const res = await resendSignupOTP(email);
+      setInfoMessage(res?.message || "OTP sent again.");
+    } catch (err) {
+      console.error("Resend failed", err);
     }
   };
 
@@ -82,6 +96,26 @@ export default function VerifyOTP() {
             {loading ? "Verifying..." : "Verify Code"}
           </button>
         </form>
+
+        {isRegisterFlow && (
+          <div className="mt-5 text-sm text-slate-500">
+            Didn&apos;t get the code?{" "}
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={loading}
+              className="font-semibold text-indigo-600 hover:text-indigo-700 disabled:text-slate-400"
+            >
+              Resend OTP
+            </button>
+          </div>
+        )}
+
+        {infoMessage && (
+          <div className="mt-4 p-4 bg-emerald-50 border border-emerald-100 rounded-xl">
+            <p className="text-sm text-emerald-700 font-medium text-center">{infoMessage}</p>
+          </div>
+        )}
 
         {error && (
           <div className="mt-6 p-4 bg-rose-50 border border-rose-100 rounded-xl">

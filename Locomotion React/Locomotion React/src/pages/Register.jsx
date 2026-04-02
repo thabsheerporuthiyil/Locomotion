@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
 
@@ -16,11 +16,24 @@ export default function Register() {
   const handleChange = (e) =>
     setForm({ ...form, [e.target.name]: e.target.value });
 
+  useEffect(() => {
+    const pendingEmail = sessionStorage.getItem("pendingSignupEmail");
+    if (pendingEmail) {
+      navigate("/verify-otp", {
+        replace: true,
+        state: { email: pendingEmail, flow: "register" },
+      });
+    }
+  }, [navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       await register(form);
-      navigate("/verify-otp", { state: { email: form.email } });
+      navigate("/verify-otp", {
+        replace: true,
+        state: { email: form.email, flow: "register" },
+      });
     } catch (registerError) {
       console.error("Registration failed:", registerError);
     }
@@ -70,7 +83,7 @@ export default function Register() {
         {error && (
           <div className="mt-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-xl backdrop-blur-sm">
             <p className="text-sm text-rose-400 font-medium text-center">
-              {error.password || error.error || "Registration failed. Please check your details."}
+              {error.password?.[0] || error.confirm_password || error.name || error.error || "Registration failed. Please check your details."}
             </p>
           </div>
         )}

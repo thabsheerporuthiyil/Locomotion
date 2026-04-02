@@ -34,6 +34,8 @@ const emptyAuthState = {
   driverApplication: null,
 };
 
+const PENDING_SIGNUP_EMAIL_KEY = "pendingSignupEmail";
+
 export const useAuthStore = create((set, get) => ({
   ...emptyAuthState,
   loading: false,
@@ -104,6 +106,7 @@ export const useAuthStore = create((set, get) => ({
     try {
       set({ loading: true, error: null });
       const res = await api.post("accounts/register/", data);
+      sessionStorage.setItem(PENDING_SIGNUP_EMAIL_KEY, data.email);
       set({ loading: false });
       return res.data;
     } catch (err) {
@@ -199,8 +202,10 @@ export const useAuthStore = create((set, get) => ({
           access: res.data.access,
           loading: false,
         });
+        sessionStorage.removeItem(PENDING_SIGNUP_EMAIL_KEY);
         await get().fetchMe();
       } else {
+        sessionStorage.removeItem(PENDING_SIGNUP_EMAIL_KEY);
         set({ loading: false });
       }
 
@@ -209,6 +214,22 @@ export const useAuthStore = create((set, get) => ({
       set({
         loading: false,
         error: normalizeApiError(err, "OTP verification failed"),
+      });
+      throw err;
+    }
+  },
+
+  resendSignupOTP: async (email) => {
+    try {
+      set({ loading: true, error: null });
+      const res = await api.post("accounts/send-otp/", { email });
+      sessionStorage.setItem(PENDING_SIGNUP_EMAIL_KEY, email);
+      set({ loading: false });
+      return res.data;
+    } catch (err) {
+      set({
+        loading: false,
+        error: normalizeApiError(err, "Failed to resend OTP"),
       });
       throw err;
     }

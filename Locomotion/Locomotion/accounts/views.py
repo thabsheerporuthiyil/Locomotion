@@ -126,16 +126,24 @@ class RegisterView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         email = serializer.validated_data["email"]
+        existing_user = User.objects.filter(email=email).first()
 
-        if User.objects.filter(email=email).exists():
+        if existing_user and existing_user.is_verified:
             return Response(
                 {"error": "User already exists"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user = serializer.save()
-        user.is_verified = False
-        user.save()
+        if existing_user:
+            user = existing_user
+            user.name = serializer.validated_data["name"]
+            user.set_password(serializer.validated_data["password"])
+            user.is_verified = False
+            user.save(update_fields=["name", "password", "is_verified"])
+        else:
+            user = serializer.save()
+            user.is_verified = False
+            user.save(update_fields=["is_verified"])
 
         # Invalidate old OTPs
         EmailOTP.objects.filter(email=email, is_used=False).update(is_used=True)
@@ -146,8 +154,14 @@ class RegisterView(APIView):
         send_otp_email.delay(email, otp)
 
         return Response(
-            {"message": "Registration successful. OTP sent to email."},
-            status=status.HTTP_201_CREATED,
+            {
+                "message": (
+                    "Account pending verification. OTP sent to email."
+                    if existing_user
+                    else "Registration successful. OTP sent to email."
+                )
+            },
+            status=status.HTTP_200_OK if existing_user else status.HTTP_201_CREATED,
         )
 
 
