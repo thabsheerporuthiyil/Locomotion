@@ -15,8 +15,8 @@ class RegisterViewTest(APITestCase):
         data = {
             "email": "new@example.com",
             "name": "New User",
-            "password": "test12345",
-            "confirm_password": "test12345",
+            "password": "StrongPass!234",
+            "confirm_password": "StrongPass!234",
         }
 
         response = self.client.post(url, data)
@@ -30,7 +30,7 @@ class RegisterViewTest(APITestCase):
         user = User.objects.create_user(
             email="pending@example.com",
             name="Pending User",
-            password="oldpassword123",
+            password="OldStrong!234",
         )
         user.is_verified = False
         user.save(update_fields=["is_verified"])
@@ -39,8 +39,8 @@ class RegisterViewTest(APITestCase):
         data = {
             "email": "pending@example.com",
             "name": "Updated User",
-            "password": "newpassword123",
-            "confirm_password": "newpassword123",
+            "password": "NewStrong!234",
+            "confirm_password": "NewStrong!234",
         }
 
         response = self.client.post(url, data)
@@ -49,7 +49,7 @@ class RegisterViewTest(APITestCase):
         self.assertEqual(User.objects.filter(email="pending@example.com").count(), 1)
         user.refresh_from_db()
         self.assertEqual(user.name, "Updated User")
-        self.assertTrue(user.check_password("newpassword123"))
+        self.assertTrue(user.check_password("NewStrong!234"))
         mock_send_otp.assert_called_once()
 
     @patch("accounts.views.send_otp_email.delay")
@@ -66,8 +66,8 @@ class RegisterViewTest(APITestCase):
         data = {
             "email": "verified@example.com",
             "name": "Verified User",
-            "password": "password123",
-            "confirm_password": "password123",
+            "password": "VerifiedStrong!234",
+            "confirm_password": "VerifiedStrong!234",
         }
 
         response = self.client.post(url, data)

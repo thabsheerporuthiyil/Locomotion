@@ -19,8 +19,8 @@ class RegisterSerializerTest(TestCase):
         data = {
             "email": "test@example.com",
             "name": "Test",
-            "password": "12345678",
-            "confirm_password": "12345678",
+            "password": "StrongPass!234",
+            "confirm_password": "StrongPass!234",
         }
         serializer = RegisterSerializer(data=data)
         self.assertTrue(serializer.is_valid())
