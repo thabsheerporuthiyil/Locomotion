@@ -190,6 +190,9 @@ class SendOTPView(APIView):
 
 
 class VerifyOTPView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
     @swagger_auto_schema(
         operation_summary="Verify Email/Admin OTP",
         request_body=VerifyOTPRequestSerializer,
@@ -206,24 +209,38 @@ class VerifyOTPView(APIView):
         }
     )
     def post(self, request):
-        email = request.data.get("email")
-        otp = request.data.get("otp")
+        serializer = VerifyOTPRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        otp = serializer.validated_data["otp"]
 
         user = User.objects.filter(email=email).first()
+        if not user:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
         record = EmailOTP.objects.filter(
             email=email, otp=otp, is_used=False
         ).last()
 
         if not record:
-            return Response({"error": "Invalid OTP"}, status=400)
+            return Response({"error": "Invalid OTP"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if timezone.now() > record.created_at + timedelta(minutes=OTP_EXPIRY_MINUTES):
+            record.is_used = True
+            record.save(update_fields=["is_used"])
+            return Response(
+                {"error": "OTP expired"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         record.is_used = True
-        record.save()
+        record.save(update_fields=["is_used"])
 
         # ADMIN OTP
         if user.is_staff or user.is_superuser:
             user.is_admin_otp_verified = True
-            user.save()
+            user.save(update_fields=["is_admin_otp_verified"])
 
             refresh = RefreshToken.for_user(user)
             response = Response({
@@ -241,7 +258,7 @@ class VerifyOTPView(APIView):
 
         # USER EMAIL VERIFICATION
         user.is_verified = True
-        user.save()
+        user.save(update_fields=["is_verified"])
         return Response({"message": "Email verified","name": user.name})
 
 

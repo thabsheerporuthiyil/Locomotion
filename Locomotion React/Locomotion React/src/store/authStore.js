@@ -5,6 +5,17 @@ const normalizeApiError = (err, fallback) => {
   const data = err?.response?.data;
   if (typeof data === "string") return data;
   if (data && typeof data === "object") {
+    const firstFieldError = Object.values(data).find(
+      (value) =>
+        (Array.isArray(value) && value.length > 0 && typeof value[0] === "string") ||
+        typeof value === "string"
+    );
+    if (Array.isArray(firstFieldError)) {
+      return firstFieldError[0];
+    }
+    if (typeof firstFieldError === "string") {
+      return firstFieldError;
+    }
     return data.error || data.detail || fallback;
   }
   return fallback;
@@ -183,12 +194,15 @@ export const useAuthStore = create((set, get) => ({
       set({ loading: true, error: null });
       const res = await api.post("accounts/verify-otp/", data);
 
-      set({
-        access: res.data.access,
-        loading: false,
-      });
-
-      await get().fetchMe();
+      if (res.data.access) {
+        set({
+          access: res.data.access,
+          loading: false,
+        });
+        await get().fetchMe();
+      } else {
+        set({ loading: false });
+      }
 
       return res.data;
     } catch (err) {

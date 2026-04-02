@@ -66,15 +66,15 @@ export default function VerifyOTP() {
             maxLength="6"
             placeholder="000000"
             value={otp}
-            onChange={(e) => setOtp(e.target.value)}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
             className="w-full text-center text-3xl tracking-[1em] font-mono px-4 py-4 rounded-xl border-2 border-slate-100 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition duration-200 bg-slate-50"
             required
           />
 
           <button
-            disabled={loading || otp.length < 4}
+            disabled={loading || otp.length !== 6}
             className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition duration-200 ${
-              loading || otp.length < 4
+              loading || otp.length !== 6
                 ? "bg-slate-300 cursor-not-allowed shadow-none" 
                 : "bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98]"
             }`}
