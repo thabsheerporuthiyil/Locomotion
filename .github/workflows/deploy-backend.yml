@@ -43,15 +43,7 @@ jobs:
           cat > commands.json <<EOF
           {
             "commands": [
-              "set -euo pipefail",
-              "cd /opt/locomotion",
-              "git checkout main",
-              "git pull --ff-only origin main",
-              "docker build -t locomotion-web:${SHORT_TAG} ./Locomotion/Locomotion",
-              "docker save locomotion-web:${SHORT_TAG} | sudo k3s ctr images import -",
-              "export KUBECONFIG=/etc/rancher/k3s/k3s.yaml",
-              "helm upgrade --install locomotion ./Locomotion/Locomotion/helm/locomotion -n locomotion -f ./Locomotion/Locomotion/helm/locomotion/values-k3s-backend.yaml --set images.backend.tag=${SHORT_TAG} --timeout 10m",
-              "kubectl rollout status deployment/locomotion-locomotion-web -n locomotion --timeout=300s"
+              "bash -lc 'set -euo pipefail; cd /opt/locomotion; git checkout main; git pull --ff-only origin main; docker build -t locomotion-web:${SHORT_TAG} ./Locomotion/Locomotion; docker save locomotion-web:${SHORT_TAG} | sudo k3s ctr images import -; export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; helm upgrade --install locomotion ./Locomotion/Locomotion/helm/locomotion -n locomotion -f ./Locomotion/Locomotion/helm/locomotion/values-k3s-backend.yaml --set images.backend.tag=${SHORT_TAG} --timeout 10m; kubectl rollout status deployment/locomotion-locomotion-web -n locomotion --timeout=300s'"
             ]
           }
           EOF
