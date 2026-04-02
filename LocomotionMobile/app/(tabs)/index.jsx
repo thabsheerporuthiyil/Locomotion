@@ -47,13 +47,15 @@ export default function HomeScreen() {
     const latestLocationRef = useRef(null);
     const appStateRef = useRef(appState);
     const currentRideIdRef = useRef(currentRideId);
+    const checkForRequestsRef = useRef(null);
+    const fetchChatMessagesRef = useRef(null);
 
     // --- INITIALIZATION & FOCUS HANDLING ---
-    const startPolling = () => {
+    const startPolling = useCallback(() => {
         if (pollingInterval.current) return;
-        checkForRequests();
-        pollingInterval.current = setInterval(checkForRequests, 5000);
-    };
+        checkForRequestsRef.current?.();
+        pollingInterval.current = setInterval(() => checkForRequestsRef.current?.(), 5000);
+    }, []);
 
     const stopChatPolling = useCallback(() => {
         if (chatPollingInterval.current) {
@@ -89,14 +91,13 @@ export default function HomeScreen() {
     }, []);
 
     useFocusEffect(
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         useCallback(() => {
             startPolling();
             return () => {
                 stopPolling();
                 stopTracking();
             };
-        }, [])
+        }, [startPolling, stopPolling, stopTracking])
     );
 
     useEffect(() => {
@@ -135,6 +136,8 @@ export default function HomeScreen() {
             console.error("Polling Error:", e);
         }
     }
+
+    checkForRequestsRef.current = checkForRequests;
 
     const handleRequests = (rides) => {
         // 1. Identify if there's an active (accepted/in-progress) ride
@@ -184,11 +187,11 @@ export default function HomeScreen() {
     };
 
     // --- CHAT LOGIC ---
-    const startChatPolling = () => {
+    const startChatPolling = useCallback(() => {
         if (chatPollingInterval.current) return;
-        fetchChatMessages();
-        chatPollingInterval.current = setInterval(fetchChatMessages, 3000);
-    };
+        fetchChatMessagesRef.current?.();
+        chatPollingInterval.current = setInterval(() => fetchChatMessagesRef.current?.(), 3000);
+    }, []);
 
     async function fetchChatMessages() {
         if (!activeRide || !['accepted', 'arrived', 'in_progress'].includes(activeRide.status)) return;
@@ -211,7 +214,8 @@ export default function HomeScreen() {
         }
     }
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    fetchChatMessagesRef.current = fetchChatMessages;
+
     useEffect(() => {
         if (activeRide && ['accepted', 'arrived', 'in_progress'].includes(activeRide.status)) {
             hasInitialChatFetch.current = false;
