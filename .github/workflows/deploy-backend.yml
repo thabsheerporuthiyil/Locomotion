@@ -1,0 +1,56 @@
+name: Deploy Backend
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    branches:
+      - main
+    types:
+      - completed
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-backend-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to EC2 / k3s
+    runs-on: ubuntu-latest
+    environment: production
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${EC2_PORT:-22}" -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy backend
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+        run: |
+          ssh -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" "bash -lc '
+            set -euo pipefail
+            SHORT_TAG=\$(printf \"%s\" \"$IMAGE_TAG\" | cut -c1-12)
+            cd /opt/locomotion
+            git checkout main
+            git pull --ff-only origin main
+            docker build -t locomotion-web:\$SHORT_TAG ./Locomotion/Locomotion
+            docker save locomotion-web:\$SHORT_TAG | sudo k3s ctr images import -
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            helm upgrade --install locomotion ./Locomotion/Locomotion/helm/locomotion -n locomotion -f ./Locomotion/Locomotion/helm/locomotion/values-k3s-backend.yaml --set images.backend.tag=\$SHORT_TAG --timeout 10m
+            kubectl rollout status deployment/locomotion-locomotion-web -n locomotion --timeout=300s
+          '"
