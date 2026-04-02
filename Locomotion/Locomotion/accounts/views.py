@@ -54,8 +54,19 @@ def _refresh_cookie_kwargs():
     return kwargs
 
 
+def _refresh_cookie_delete_kwargs():
+    kwargs = {
+        "path": "/",
+        "samesite": settings.SESSION_COOKIE_SAMESITE,
+    }
+    cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
+    if cookie_domain:
+        kwargs["domain"] = cookie_domain
+    return kwargs
+
+
 def _clear_refresh_cookie(response):
-    response.delete_cookie("refresh", **_refresh_cookie_kwargs())
+    response.delete_cookie("refresh", **_refresh_cookie_delete_kwargs())
     return response
 
 

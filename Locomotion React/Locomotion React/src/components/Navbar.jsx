@@ -48,8 +48,8 @@ export default function Navbar() {
     };
   }, [profileRef]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     setIsProfileOpen(false);
     setIsOpen(false);
   };
