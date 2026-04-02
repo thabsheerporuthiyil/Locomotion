@@ -41,6 +41,24 @@ def generate_otp():
     return str(random.randint(100000, 999999))
 
 
+def _refresh_cookie_kwargs():
+    kwargs = {
+        "httponly": True,
+        "secure": settings.SESSION_COOKIE_SECURE,
+        "samesite": settings.SESSION_COOKIE_SAMESITE,
+        "path": "/",
+    }
+    cookie_domain = getattr(settings, "SESSION_COOKIE_DOMAIN", None)
+    if cookie_domain:
+        kwargs["domain"] = cookie_domain
+    return kwargs
+
+
+def _clear_refresh_cookie(response):
+    response.delete_cookie("refresh", **_refresh_cookie_kwargs())
+    return response
+
+
 def _issue_auth_response(user, role=None, extra_payload=None):
     refresh = RefreshToken.for_user(user)
     payload = {
@@ -56,9 +74,7 @@ def _issue_auth_response(user, role=None, extra_payload=None):
     response.set_cookie(
         key="refresh",
         value=str(refresh),
-        httponly=True,
-        secure=settings.SESSION_COOKIE_SECURE,
-        samesite=settings.SESSION_COOKIE_SAMESITE,
+        **_refresh_cookie_kwargs(),
     )
     return response
 
@@ -208,9 +224,7 @@ class VerifyOTPView(APIView):
             response.set_cookie(
                 key="refresh",
                 value=str(refresh),
-                httponly=True,
-                secure=settings.SESSION_COOKIE_SECURE,
-                samesite=settings.SESSION_COOKIE_SAMESITE,
+                **_refresh_cookie_kwargs(),
             )
             return response
 
@@ -338,8 +352,7 @@ class CookieTokenRefreshView(APIView):
 class LogoutView(APIView):
     def post(self, request):
         response = Response({"message": "Logged out"})
-        response.delete_cookie("refresh")
-        return response
+        return _clear_refresh_cookie(response)
 
 
 class ForgotPasswordSendOTPView(APIView):
@@ -626,9 +639,7 @@ class Verify2FALoginView(APIView):
         response.set_cookie(
             key="refresh",
             value=str(refresh),
-            httponly=True,
-            secure=settings.SESSION_COOKIE_SECURE,
-            samesite=settings.SESSION_COOKIE_SAMESITE,
+            **_refresh_cookie_kwargs(),
         )
 
         return response
