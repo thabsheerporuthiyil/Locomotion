@@ -7,6 +7,18 @@ from django.core.cache import cache
 from django.utils import timezone
 
 
+def _dynamodb_region() -> str:
+    return getattr(settings, "AWS_DYNAMODB_REGION", getattr(settings, "AWS_REGION", "ap-south-1"))
+
+
+def _location_history_ttl_days() -> int:
+    return getattr(settings, "LOCATION_HISTORY_TTL_DAYS", 180)
+
+
+def _location_history_sample_seconds() -> int:
+    return getattr(settings, "LOCATION_HISTORY_SAMPLE_SECONDS", 5)
+
+
 def location_history_is_enabled() -> bool:
     return bool(
         getattr(settings, "LOCATION_HISTORY_ENABLED", False)
@@ -25,7 +37,7 @@ def _sample_cache_key(ride_id, role):
 def get_location_history_table():
     return boto3.resource(
         "dynamodb",
-        region_name=settings.AWS_DYNAMODB_REGION,
+        region_name=_dynamodb_region(),
     ).Table(settings.DYNAMODB_LOCATION_TABLE)
 
 
@@ -42,7 +54,7 @@ def build_location_history_item(
     if timezone.is_naive(recorded_at):
         recorded_at = timezone.make_aware(recorded_at, timezone.get_current_timezone())
 
-    expires_at = recorded_at + timedelta(days=settings.LOCATION_HISTORY_TTL_DAYS)
+    expires_at = recorded_at + timedelta(days=_location_history_ttl_days())
     actor_user_id = (
         ride.driver.user_id if role == "driver" else ride.rider_id if role == "rider" else None
     )
@@ -93,7 +105,7 @@ def should_sample_location_history_event(ride_id, role) -> bool:
     if not location_history_is_enabled():
         return False
 
-    sample_seconds = getattr(settings, "LOCATION_HISTORY_SAMPLE_SECONDS", 0)
+    sample_seconds = _location_history_sample_seconds()
     if sample_seconds <= 0:
         return True
 
