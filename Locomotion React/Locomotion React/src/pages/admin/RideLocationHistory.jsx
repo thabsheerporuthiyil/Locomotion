@@ -89,11 +89,28 @@ export default function RideLocationHistory() {
   const initialRideId = searchParams.get("rideId") || "";
 
   const [rideIdInput, setRideIdInput] = useState(initialRideId);
+  const [recentRides, setRecentRides] = useState([]);
+  const [ridesLoading, setRidesLoading] = useState(false);
   const [history, setHistory] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const fetchRecentRides = async () => {
+    setRidesLoading(true);
+    try {
+      const res = await api.get("location/admin/rides/", {
+        params: { limit: 30 },
+      });
+      setRecentRides(res.data?.results || []);
+    } catch (err) {
+      console.error(err);
+      setRecentRides([]);
+    } finally {
+      setRidesLoading(false);
+    }
+  };
 
   const fetchHistory = async (rideId) => {
     const normalizedRideId = String(rideId || "").trim();
@@ -125,6 +142,7 @@ export default function RideLocationHistory() {
   };
 
   useEffect(() => {
+    fetchRecentRides();
     if (initialRideId) {
       fetchHistory(initialRideId);
     }
@@ -218,6 +236,11 @@ export default function RideLocationHistory() {
   const playbackLabel = currentPoint
     ? `${currentPoint.role === "driver" ? "Driver" : "Rider"} point ${safeIndex + 1} of ${points.length}`
     : "No point selected";
+
+  const noSavedPointsMessage =
+    history && history.count === 0
+      ? "This ride exists, but no live location points have been stored yet. History starts only after the driver or rider sends live location updates."
+      : "";
 
   return (
     <div className="space-y-6">
@@ -318,9 +341,12 @@ export default function RideLocationHistory() {
                 <div className="w-14 h-14 rounded-3xl bg-indigo-50 text-indigo-700 flex items-center justify-center ring-1 ring-indigo-100 mb-4">
                   <MapPinned size={24} />
                 </div>
-                <div className="font-black text-slate-900">No ride history loaded</div>
+                <div className="font-black text-slate-900">
+                  {history ? "No stored points yet" : "No ride history loaded"}
+                </div>
                 <div className="mt-2 text-sm text-slate-500 max-w-md">
-                  Enter a ride ID above to view the stored location trail and step through each recorded point.
+                  {noSavedPointsMessage ||
+                    "Enter a ride ID above to view the stored location trail and step through each recorded point."}
                 </div>
               </div>
             ) : (
@@ -533,6 +559,91 @@ export default function RideLocationHistory() {
             )}
           </div>
         </div>
+      </div>
+
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+          <div>
+            <div className="font-black text-slate-900">Recent Rides</div>
+            <div className="text-xs font-semibold text-slate-500">
+              Pick a ride directly here if you do not know the ride ID yet.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fetchRecentRides}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold transition disabled:opacity-60"
+            disabled={ridesLoading}
+          >
+            <RefreshCw size={16} className={ridesLoading ? "animate-spin" : ""} />
+            Refresh list
+          </button>
+        </div>
+
+        {ridesLoading ? (
+          <div className="p-6 text-slate-500">Loading recent rides…</div>
+        ) : recentRides.length === 0 ? (
+          <div className="p-6 text-slate-500">
+            No recent rides were returned for the admin picker.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="border-b text-left bg-slate-50">
+                <tr className="text-slate-600">
+                  <th className="py-3 px-4">Ride ID</th>
+                  <th className="px-4">Status</th>
+                  <th className="px-4">Rider</th>
+                  <th className="px-4">Driver</th>
+                  <th className="px-4">Route</th>
+                  <th className="px-4">Created</th>
+                  <th className="px-4">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentRides.map((ride) => (
+                  <tr key={ride.id} className="border-b hover:bg-slate-50 align-top">
+                    <td className="py-4 px-4">
+                      <div className="font-black text-slate-900">#{ride.id}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <span className="px-3 py-1 rounded-full text-xs font-black bg-indigo-50 text-indigo-700 ring-1 ring-indigo-100">
+                        {ride.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="font-semibold text-slate-900">{ride.rider_name || "Unknown rider"}</div>
+                      <div className="text-xs text-slate-500">{ride.rider_email || ""}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="font-semibold text-slate-900">{ride.driver_name || "Unknown driver"}</div>
+                      <div className="text-xs text-slate-500">{ride.driver_email || ""}</div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="font-semibold text-slate-900">{ride.source_location}</div>
+                      <div className="text-xs text-slate-500">to {ride.destination_location}</div>
+                    </td>
+                    <td className="py-4 px-4 text-slate-600">
+                      {formatTimestamp(ride.created_at)}
+                    </td>
+                    <td className="py-4 px-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRideIdInput(String(ride.id));
+                          fetchHistory(ride.id);
+                        }}
+                        className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition"
+                      >
+                        Load history
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

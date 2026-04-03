@@ -373,3 +373,36 @@ class AdminRideLocationHistoryApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_fetch_recent_rides_for_history_picker(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            reverse("admin-ride-history-list"),
+            {"limit": 25},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], self.ride.id)
+        self.assertEqual(response.data["results"][0]["status"], "accepted")
+        self.assertEqual(response.data["results"][0]["rider_email"], self.rider.email)
+
+    def test_admin_can_search_recent_rides_by_exact_numeric_id(self):
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            reverse("admin-ride-history-list"),
+            {"q": str(self.ride.id)},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], self.ride.id)
+
+    def test_non_admin_cannot_fetch_recent_rides_for_history_picker(self):
+        self.client.force_authenticate(user=self.rider)
+
+        response = self.client.get(reverse("admin-ride-history-list"))
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
