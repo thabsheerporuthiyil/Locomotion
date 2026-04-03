@@ -1,8 +1,8 @@
 from django.urls import path
 
-from .views import (DistrictListView, PanchayathListView,
-                    RideLatestLocationView, RideLocationUpdateView,
-                    TalukListView)
+from .views import (AdminRideLocationHistoryView, DistrictListView,
+                    PanchayathListView, RideLatestLocationView,
+                    RideLocationUpdateView, TalukListView)
 
 urlpatterns = [
     path("districts/", DistrictListView.as_view(), name="district-list"),
@@ -10,4 +10,5 @@ urlpatterns = [
     path("panchayaths/", PanchayathListView.as_view(), name="panchayath-list"),
     path("rides/<int:ride_id>/latest/", RideLatestLocationView.as_view(), name="ride-latest-location"),
     path("rides/<int:ride_id>/update/", RideLocationUpdateView.as_view(), name="ride-location-update"),
+    path("admin/rides/<int:ride_id>/history/", AdminRideLocationHistoryView.as_view(), name="admin-ride-location-history"),
 ]

@@ -2,20 +2,26 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
+from django.contrib.auth import get_user_model
+from django.urls import reverse
 from django.test import TestCase, override_settings
 from django.utils import timezone
+from rest_framework import status
+from rest_framework.test import APITestCase
 
-from accounts.models import User
 from bookings.models import RideRequest
 from drivers.models import DriverProfile
 from location.location_history import (
     build_location_history_item,
     enqueue_location_history_event,
+    query_location_history,
     should_sample_location_history_event,
     write_location_history_event,
 )
 from location.models import District, Panchayath, Taluk
 from location.tasks import record_location_history_event
+
+User = get_user_model()
 
 
 class LocationHistoryTests(TestCase):
@@ -136,6 +142,45 @@ class LocationHistoryTests(TestCase):
         DYNAMODB_LOCATION_TABLE="locomotion-location-history",
         AWS_DYNAMODB_REGION="ap-south-1",
     )
+    @patch("location.location_history.get_location_history_table")
+    def test_query_location_history_reads_and_normalizes_results(self, mock_get_table):
+        mock_table = MagicMock()
+        mock_get_table.return_value = mock_table
+        mock_table.query.return_value = {
+            "Items": [
+                {
+                    "ride_id": str(self.ride.id),
+                    "event_ts": "2026-04-03T03:30:00+00:00",
+                    "latitude": Decimal("11.123456"),
+                    "longitude": Decimal("76.654321"),
+                    "heading": Decimal("90"),
+                    "role": "driver",
+                }
+            ],
+            "LastEvaluatedKey": {
+                "ride_id": str(self.ride.id),
+                "event_ts": "2026-04-03T03:30:00+00:00",
+            },
+        }
+
+        result = query_location_history(self.ride.id, limit=100, forward=False)
+
+        self.assertEqual(result["items"][0]["latitude"], 11.123456)
+        self.assertEqual(result["items"][0]["longitude"], 76.654321)
+        self.assertEqual(result["items"][0]["heading"], 90)
+        self.assertEqual(
+            result["last_evaluated_key"]["event_ts"], "2026-04-03T03:30:00+00:00"
+        )
+        mock_table.query.assert_called_once()
+        query_kwargs = mock_table.query.call_args.kwargs
+        self.assertEqual(query_kwargs["Limit"], 100)
+        self.assertFalse(query_kwargs["ScanIndexForward"])
+
+    @override_settings(
+        LOCATION_HISTORY_ENABLED=True,
+        DYNAMODB_LOCATION_TABLE="locomotion-location-history",
+        AWS_DYNAMODB_REGION="ap-south-1",
+    )
     @patch("location.tasks.write_location_history_event")
     def test_record_location_history_event_task_uses_helper(self, mock_write):
         mock_write.return_value = {"event_ts": "2026-04-03T03:30:00+00:00"}
@@ -232,3 +277,99 @@ class LocationHistoryTests(TestCase):
 
         self.assertFalse(queued)
         mock_dispatch.assert_not_called()
+
+
+class AdminRideLocationHistoryApiTests(APITestCase):
+    def setUp(self):
+        district = District.objects.create(name="Malappuram")
+        taluk = Taluk.objects.create(district=district, name="Perinthalmanna")
+        panchayath = Panchayath.objects.create(taluk=taluk, name="Puzhakkattiri")
+
+        self.admin = User.objects.create_user(
+            email="admin@example.com",
+            name="Admin",
+            password="StrongPass123!",
+        )
+        self.admin.is_staff = True
+        self.admin.is_superuser = True
+        self.admin.save(update_fields=["is_staff", "is_superuser"])
+
+        self.rider = User.objects.create_user(
+            email="rider@example.com",
+            name="Rider",
+            password="StrongPass123!",
+        )
+        self.driver_user = User.objects.create_user(
+            email="driver@example.com",
+            name="Driver",
+            password="StrongPass123!",
+        )
+        self.driver = DriverProfile.objects.create(
+            user=self.driver_user,
+            phone_number="9876543210",
+            experience_years=3,
+            service_type="driver_only",
+            panchayath=panchayath,
+        )
+        self.ride = RideRequest.objects.create(
+            rider=self.rider,
+            driver=self.driver,
+            source_location="Source",
+            source_lat=10.9981,
+            source_lng=76.2273,
+            destination_location="Destination",
+            destination_lat=11.0025,
+            destination_lng=76.2454,
+            status="accepted",
+        )
+
+    @patch("location.views.query_location_history")
+    def test_admin_can_fetch_ride_location_history(self, mock_query):
+        mock_query.return_value = {
+            "items": [
+                {
+                    "ride_id": str(self.ride.id),
+                    "event_ts": "2026-04-03T03:30:00+00:00",
+                    "role": "driver",
+                    "latitude": 11.123456,
+                    "longitude": 76.654321,
+                    "heading": 90,
+                    "source": "websocket",
+                }
+            ],
+            "last_evaluated_key": {
+                "ride_id": str(self.ride.id),
+                "event_ts": "2026-04-03T03:30:00+00:00",
+            },
+        }
+        self.client.force_authenticate(user=self.admin)
+
+        response = self.client.get(
+            reverse("admin-ride-location-history", args=[self.ride.id]),
+            {"order": "desc", "limit": 100},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["ride_id"], self.ride.id)
+        self.assertEqual(response.data["booking_status"], "accepted")
+        self.assertEqual(response.data["order"], "desc")
+        self.assertEqual(response.data["limit"], 100)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(
+            response.data["next_cursor"], "2026-04-03T03:30:00+00:00"
+        )
+        self.assertEqual(response.data["results"][0]["role"], "driver")
+        mock_query.assert_called_once_with(
+            ride_id=self.ride.id,
+            limit=100,
+            forward=False,
+        )
+
+    def test_non_admin_cannot_fetch_ride_location_history(self):
+        self.client.force_authenticate(user=self.rider)
+
+        response = self.client.get(
+            reverse("admin-ride-location-history", args=[self.ride.id])
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)

@@ -2,6 +2,7 @@ from datetime import timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 import boto3
+from boto3.dynamodb.conditions import Key
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
@@ -28,6 +29,16 @@ def location_history_is_enabled() -> bool:
 
 def _to_decimal(value):
     return Decimal(str(value))
+
+
+def _normalize_dynamodb_value(value):
+    if isinstance(value, Decimal):
+        return int(value) if value == value.to_integral_value() else float(value)
+    if isinstance(value, list):
+        return [_normalize_dynamodb_value(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _normalize_dynamodb_value(item) for key, item in value.items()}
+    return value
 
 
 def _sample_cache_key(ride_id, role):
@@ -99,6 +110,24 @@ def write_location_history_event(
     )
     get_location_history_table().put_item(Item=item)
     return item
+
+
+def query_location_history(ride_id, limit=500, forward=True):
+    if not location_history_is_enabled():
+        return {"items": [], "last_evaluated_key": None}
+
+    limit = max(1, min(int(limit or 500), 5000))
+    response = get_location_history_table().query(
+        KeyConditionExpression=Key("ride_id").eq(str(ride_id)),
+        Limit=limit,
+        ScanIndexForward=forward,
+    )
+    return {
+        "items": [_normalize_dynamodb_value(item) for item in response.get("Items", [])],
+        "last_evaluated_key": _normalize_dynamodb_value(
+            response.get("LastEvaluatedKey")
+        ),
+    }
 
 
 def should_sample_location_history_event(ride_id, role) -> bool:
