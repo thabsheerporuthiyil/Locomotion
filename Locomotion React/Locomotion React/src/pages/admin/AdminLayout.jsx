@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { LayoutGrid, Car, FileText, Users, LogOut, Menu, X } from "lucide-react";
+import { LayoutGrid, Car, FileText, Users, LogOut, Menu, X, MapPinned } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 
 const navItems = [
@@ -8,12 +8,14 @@ const navItems = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/drivers", label: "Driver Applications", icon: FileText },
   { to: "/admin/vehicles", label: "Vehicle Requests", icon: Car },
+  { to: "/admin/location-history", label: "Ride History", icon: MapPinned },
 ];
 
 function getTitle(pathname) {
   if (pathname.startsWith("/admin/users")) return "Users";
   if (pathname.startsWith("/admin/drivers")) return "Driver Applications";
   if (pathname.startsWith("/admin/vehicles")) return "Vehicle Requests";
+  if (pathname.startsWith("/admin/location-history")) return "Ride History";
   return "Dashboard";
 }
 

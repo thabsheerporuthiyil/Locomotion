@@ -11,6 +11,7 @@ import AdminLayout from "./pages/admin/AdminLayout";
 import Users from "./pages/admin/Users";
 import DriverApplications from "./pages/admin/DriverApplications";
 import VehicleRequests from "./pages/admin/VehicleRequests";
+import RideLocationHistory from "./pages/admin/RideLocationHistory";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -98,6 +99,7 @@ export default function App() {
             <Route path="users" element={<Users />} />
             <Route path="drivers" element={<DriverApplications />} />
             <Route path="vehicles" element={<VehicleRequests />} />
+            <Route path="location-history" element={<RideLocationHistory />} />
           </Route>
 
           <Route
