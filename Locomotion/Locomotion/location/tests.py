@@ -10,6 +10,8 @@ from bookings.models import RideRequest
 from drivers.models import DriverProfile
 from location.location_history import (
     build_location_history_item,
+    enqueue_location_history_event,
+    should_sample_location_history_event,
     write_location_history_event,
 )
 from location.models import District, Panchayath, Taluk
@@ -151,3 +153,82 @@ class LocationHistoryTests(TestCase):
         self.assertEqual(result["saved"], True)
         self.assertEqual(result["ride_id"], str(self.ride.id))
         self.assertEqual(result["event_ts"], "2026-04-03T03:30:00+00:00")
+
+    @override_settings(
+        LOCATION_HISTORY_ENABLED=True,
+        DYNAMODB_LOCATION_TABLE="locomotion-location-history",
+        AWS_DYNAMODB_REGION="ap-south-1",
+        LOCATION_HISTORY_SAMPLE_SECONDS=5,
+    )
+    @patch("location.location_history.cache.add")
+    def test_should_sample_location_history_event_uses_cache_guard(self, mock_cache_add):
+        mock_cache_add.return_value = True
+
+        allowed = should_sample_location_history_event(self.ride.id, "driver")
+
+        self.assertTrue(allowed)
+        mock_cache_add.assert_called_once_with(
+            f"ride_location_history:last_sample:{self.ride.id}:driver",
+            "1",
+            timeout=5,
+        )
+
+    @override_settings(
+        LOCATION_HISTORY_ENABLED=True,
+        DYNAMODB_LOCATION_TABLE="locomotion-location-history",
+        AWS_DYNAMODB_REGION="ap-south-1",
+        LOCATION_HISTORY_SAMPLE_SECONDS=5,
+    )
+    @patch("location.location_history._dispatch_location_history_task")
+    @patch("location.location_history.cache.add")
+    def test_enqueue_location_history_event_dispatches_when_sample_allowed(
+        self,
+        mock_cache_add,
+        mock_dispatch,
+    ):
+        mock_cache_add.return_value = True
+
+        queued = enqueue_location_history_event(
+            ride_id=self.ride.id,
+            role="driver",
+            latitude=11.1,
+            longitude=76.2,
+            heading=45,
+            source="api",
+        )
+
+        self.assertTrue(queued)
+        mock_dispatch.assert_called_once_with(
+            ride_id=self.ride.id,
+            role="driver",
+            latitude=11.1,
+            longitude=76.2,
+            heading=45,
+            source="api",
+        )
+
+    @override_settings(
+        LOCATION_HISTORY_ENABLED=True,
+        DYNAMODB_LOCATION_TABLE="locomotion-location-history",
+        AWS_DYNAMODB_REGION="ap-south-1",
+        LOCATION_HISTORY_SAMPLE_SECONDS=5,
+    )
+    @patch("location.location_history._dispatch_location_history_task")
+    @patch("location.location_history.cache.add")
+    def test_enqueue_location_history_event_skips_when_sample_blocked(
+        self,
+        mock_cache_add,
+        mock_dispatch,
+    ):
+        mock_cache_add.return_value = False
+
+        queued = enqueue_location_history_event(
+            ride_id=self.ride.id,
+            role="rider",
+            latitude=11.1,
+            longitude=76.2,
+            source="websocket",
+        )
+
+        self.assertFalse(queued)
+        mock_dispatch.assert_not_called()

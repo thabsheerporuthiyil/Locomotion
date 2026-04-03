@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from bookings.models import RideRequest
+from .location_history import enqueue_location_history_event
 from .models import District, Panchayath, Taluk
 from .serializers import (DistrictSerializer, PanchayathSerializer,
                           TalukSerializer)
@@ -124,6 +125,14 @@ class RideLocationUpdateView(APIView):
 
         role = "driver" if is_driver else "rider"
         payload = _store_location(ride_id, role, latitude, longitude, heading)
+        enqueue_location_history_event(
+            ride_id=ride.id,
+            role=role,
+            latitude=latitude,
+            longitude=longitude,
+            heading=heading,
+            source="api",
+        )
 
         channel_layer = get_channel_layer()
         if channel_layer is not None:

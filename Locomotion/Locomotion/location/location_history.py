@@ -1,8 +1,9 @@
-from datetime import timedelta
+from datetime import timedelta, timezone as dt_timezone
 from decimal import Decimal
 
 import boto3
 from django.conf import settings
+from django.core.cache import cache
 from django.utils import timezone
 
 
@@ -15,6 +16,10 @@ def location_history_is_enabled() -> bool:
 
 def _to_decimal(value):
     return Decimal(str(value))
+
+
+def _sample_cache_key(ride_id, role):
+    return f"ride_location_history:last_sample:{ride_id}:{role}"
 
 
 def get_location_history_table():
@@ -44,7 +49,7 @@ def build_location_history_item(
 
     return {
         "ride_id": str(ride.id),
-        "event_ts": recorded_at.astimezone(timezone.utc).isoformat(),
+        "event_ts": recorded_at.astimezone(dt_timezone.utc).isoformat(),
         "role": role,
         "actor_user_id": actor_user_id,
         "rider_id": ride.rider_id,
@@ -82,3 +87,59 @@ def write_location_history_event(
     )
     get_location_history_table().put_item(Item=item)
     return item
+
+
+def should_sample_location_history_event(ride_id, role) -> bool:
+    if not location_history_is_enabled():
+        return False
+
+    sample_seconds = getattr(settings, "LOCATION_HISTORY_SAMPLE_SECONDS", 0)
+    if sample_seconds <= 0:
+        return True
+
+    return cache.add(_sample_cache_key(ride_id, role), "1", timeout=sample_seconds)
+
+
+def _dispatch_location_history_task(
+    ride_id,
+    role,
+    latitude,
+    longitude,
+    heading=0,
+    source="unknown",
+):
+    from .tasks import record_location_history_event
+
+    record_location_history_event.delay(
+        ride_id=ride_id,
+        role=role,
+        latitude=latitude,
+        longitude=longitude,
+        heading=heading,
+        source=source,
+    )
+
+
+def enqueue_location_history_event(
+    ride_id,
+    role,
+    latitude,
+    longitude,
+    heading=0,
+    source="unknown",
+) -> bool:
+    if role not in {"driver", "rider"} or latitude is None or longitude is None:
+        return False
+
+    if not should_sample_location_history_event(ride_id, role):
+        return False
+
+    _dispatch_location_history_task(
+        ride_id=ride_id,
+        role=role,
+        latitude=latitude,
+        longitude=longitude,
+        heading=heading,
+        source=source,
+    )
+    return True

@@ -4,6 +4,8 @@ from asgiref.sync import sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 from django.core.cache import cache
 
+from .location_history import enqueue_location_history_event
+
 
 LOCATION_CACHE_TTL_SECONDS = 60 * 60
 
@@ -50,6 +52,14 @@ class LocationConsumer(AsyncWebsocketConsumer):
                 self._cache_key(role),
                 payload,
                 timeout=LOCATION_CACHE_TTL_SECONDS,
+            )
+            await sync_to_async(enqueue_location_history_event)(
+                ride_id=self.ride_id,
+                role=role,
+                latitude=latitude,
+                longitude=longitude,
+                heading=heading,
+                source="websocket",
             )
 
         # Broadcast message to room group
