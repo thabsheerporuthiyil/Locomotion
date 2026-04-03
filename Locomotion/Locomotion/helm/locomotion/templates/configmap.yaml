@@ -24,9 +24,14 @@ data:
   AWS_REGION: {{ .Values.appConfig.awsRegion | quote }}
   AWS_S3_REGION: {{ default .Values.appConfig.awsRegion .Values.appConfig.awsS3Region | quote }}
   AWS_SQS_REGION: {{ default .Values.appConfig.awsRegion .Values.appConfig.awsSqsRegion | quote }}
+  AWS_DYNAMODB_REGION: {{ default .Values.appConfig.awsRegion .Values.appConfig.awsDynamodbRegion | quote }}
   AWS_STORAGE_BUCKET_NAME: {{ .Values.appConfig.awsStorageBucketName | quote }}
   AWS_MEDIA_URL_EXPIRE_SECONDS: {{ .Values.appConfig.awsMediaUrlExpireSeconds | quote }}
   AWS_QUERYSTRING_AUTH: {{ ternary "True" "False" .Values.appConfig.awsQuerystringAuth | quote }}
+  DYNAMODB_LOCATION_TABLE: {{ .Values.appConfig.dynamodbLocationTable | quote }}
+  LOCATION_HISTORY_ENABLED: {{ ternary "True" "False" .Values.appConfig.locationHistoryEnabled | quote }}
+  LOCATION_HISTORY_TTL_DAYS: {{ .Values.appConfig.locationHistoryTtlDays | quote }}
+  LOCATION_HISTORY_SAMPLE_SECONDS: {{ .Values.appConfig.locationHistorySampleSeconds | quote }}
   LLM_PROVIDER: {{ .Values.appConfig.llmProvider | quote }}
   AI_SERVICE_URL: {{ default (printf "http://%s-fastapi-ai:%d" (include "locomotion.fullname" .) (int .Values.fastapiAi.service.port)) .Values.appConfig.aiServiceUrl | quote }}
   AWS_SQS_QUEUE_URL: {{ .Values.appConfig.sqsQueueUrl | quote }}

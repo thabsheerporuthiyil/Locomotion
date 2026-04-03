@@ -50,9 +50,14 @@ appConfig:
   awsRegion: ap-south-1
   awsS3Region: eu-north-1
   awsSqsRegion: eu-north-1
+  awsDynamodbRegion: ap-south-1
   awsStorageBucketName: locomotion-media
   awsMediaUrlExpireSeconds: "3600"
   awsQuerystringAuth: false
+  dynamodbLocationTable: locomotion-location-history
+  locationHistoryEnabled: true
+  locationHistoryTtlDays: "180"
+  locationHistorySampleSeconds: "5"
   llmProvider: gemini
   aiServiceUrl: https://thabsheeeeer-locomotion-ai.hf.space
   sqsQueueUrl: https://sqs.eu-north-1.amazonaws.com/471914528467/locomotion-notifications

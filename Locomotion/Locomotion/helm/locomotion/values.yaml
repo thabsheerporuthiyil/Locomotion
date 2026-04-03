@@ -52,8 +52,13 @@ appConfig:
   awsRegion: ap-south-1
   awsS3Region: ""
   awsSqsRegion: ""
+  awsDynamodbRegion: ""
   awsStorageBucketName: ""
   awsMediaUrlExpireSeconds: "3600"
+  dynamodbLocationTable: ""
+  locationHistoryEnabled: false
+  locationHistoryTtlDays: "180"
+  locationHistorySampleSeconds: "5"
   llmProvider: gemini
   aiServiceUrl: ""
   qdrantHost: ""
