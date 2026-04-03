@@ -323,7 +323,7 @@ class AdminRideLocationHistoryApiTests(APITestCase):
             status="accepted",
         )
 
-    @patch("location.views.query_location_history")
+    @patch("location.admin_views.query_location_history")
     def test_admin_can_fetch_ride_location_history(self, mock_query):
         mock_query.return_value = {
             "items": [
