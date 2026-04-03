@@ -120,12 +120,7 @@ class RegisterView(APIView):
         operation_description="Register a new user and send verification OTP"
     )
     def post(self, request):
-        serializer = RegisterSerializer(data=request.data)
-
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-        email = serializer.validated_data["email"]
+        email = (request.data.get("email") or "").strip().lower()
         existing_user = User.objects.filter(email=email).first()
 
         if existing_user and existing_user.is_verified:
@@ -134,12 +129,20 @@ class RegisterView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        serializer = RegisterSerializer(
+            existing_user if existing_user else None,
+            data=request.data,
+        )
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        email = serializer.validated_data["email"]
+
         if existing_user:
-            user = existing_user
-            user.name = serializer.validated_data["name"]
-            user.set_password(serializer.validated_data["password"])
+            user = serializer.save()
             user.is_verified = False
-            user.save(update_fields=["name", "password", "is_verified"])
+            user.save(update_fields=["is_verified"])
         else:
             user = serializer.save()
             user.is_verified = False

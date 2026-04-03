@@ -37,6 +37,16 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User.objects.create_user(**validated_data)
         return user
 
+    def update(self, instance, validated_data):
+        validated_data.pop("confirm_password", None)
+        instance.email = validated_data["email"]
+        instance.name = validated_data["name"]
+        instance.set_password(validated_data["password"])
+        if not instance.role:
+            instance.role = "customer"
+        instance.save(update_fields=["email", "name", "password", "role"])
+        return instance
+
 
 class VerifyOTPRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
