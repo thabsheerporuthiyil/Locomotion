@@ -12,7 +12,7 @@ from drivers.models import DriverProfile
 
 User = get_user_model()
 
-
+# List users for the admin dashboard with search and block-status filters.
 class AdminUserListView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -87,6 +87,7 @@ class AdminUserListView(APIView):
         return Response({"total": total, "results": results}, status=status.HTTP_200_OK)
 
 
+# Block or unblock a specific user from the admin dashboard.
 class AdminUserBlockView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -118,4 +119,3 @@ class AdminUserBlockView(APIView):
             {"message": "User updated", "id": user.id, "is_active": user.is_active},
             status=status.HTTP_200_OK,
         )
-
