@@ -9,7 +9,7 @@ from django.db.models import Avg, Count
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -17,8 +17,9 @@ from accounts.models import Notification
 from drivers.permissions import IsActiveDriver
 from drivers.tasks import sync_driver_to_qdrant
 
-from .models import RideRequest
+from .models import ChatMessage, RideRequest
 from .serializers import (RideRatingSerializer, RideRequestCreateSerializer, RideRequestSerializer)
+from .serializers import ChatMessageSerializer
 
 
 def _get_active_fcm_tokens(user):
@@ -38,7 +39,10 @@ def _get_active_fcm_tokens(user):
     return [token for token in tokens if token]
 
 
+ # Calculate an estimated fare for a ride before booking.
 class CalculateFareView(APIView):
+    permission_classes = [AllowAny]
+
     @swagger_auto_schema(
         operation_description="Calculate estimated fare for a ride",
         request_body=openapi.Schema(
@@ -167,7 +171,7 @@ class CalculateFareView(APIView):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
+# Create a new ride request for the authenticated rider.
 class CreateRideRequestView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -322,8 +326,7 @@ class CreateRideRequestView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-
-# List ride requests for drivers
+# List the assigned and active ride requests for a driver.
 class DriverRideRequestListView(APIView):
     permission_classes = [IsActiveDriver]
 
@@ -348,8 +351,7 @@ class DriverRideRequestListView(APIView):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
-# List of all rides for riders "My Rides"
+# List the current rider's ride history.
 class RiderRideRequestListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -366,8 +368,7 @@ class RiderRideRequestListView(APIView):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
-# Not used yet
+# Return, update, or delete a specific ride when the user is involved in it.
 class RideRequestDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -427,8 +428,7 @@ class RideRequestDetailView(APIView):
         except RideRequest.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-
-# Actions like accept and reject
+# Perform status-changing ride actions for the assigned driver.
 class RideRequestActionView(APIView):
     permission_classes = [IsActiveDriver]
 
@@ -678,7 +678,7 @@ class RideRequestActionView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
+# Submit a rider rating and feedback for a completed ride.
 class RateRideView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -737,11 +737,7 @@ class RateRideView(APIView):
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-from .models import ChatMessage
-from .serializers import ChatMessageSerializer
-
-
+# Return the chat history for a ride involving the current user.
 class ChatHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -775,7 +771,7 @@ class ChatHistoryView(APIView):
         except RideRequest.DoesNotExist:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-
+# Send a ride chat message from the authenticated rider or driver.
 class SendMessageView(APIView):
     permission_classes = [IsAuthenticated]
 

@@ -12,7 +12,7 @@ from .models import (DriverApplication, DriverApplicationReview, DriverProfile,
 from .serializers import DriverApplicationSerializer, DriverVehicleSerializer
 from .tasks import sync_driver_to_qdrant
 
-
+# List driver applications for admin review with optional filters.
 class AdminDriverApplicationListView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -40,7 +40,7 @@ class AdminDriverApplicationListView(APIView):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
+# Approve or reject a specific driver application as an admin.
 class AdminDriverApplicationActionView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -125,7 +125,7 @@ class AdminDriverApplicationActionView(APIView):
 
         return Response({"message": f"Application {application.status}"})
 
-
+# List vehicle submissions for admin review with optional filters.
 class AdminVehicleListView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -153,7 +153,7 @@ class AdminVehicleListView(APIView):
         )
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
+# Approve or reject a specific driver vehicle as an admin.
 class AdminVehicleActionView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -203,7 +203,7 @@ class AdminVehicleActionView(APIView):
 
         return Response({"message": f"Vehicle {vehicle.status}"})
 
-
+# Return count-based admin stats for drivers and vehicles.
 class AdminStatsView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -241,7 +241,7 @@ class AdminStatsView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
+# Return the cached admin dashboard payload for driver operations.
 class AdminDashboardView(APIView):
     permission_classes = [IsAdminUser]
 

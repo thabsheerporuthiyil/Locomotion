@@ -7,7 +7,7 @@ from .models import VehicleBrand, VehicleCategory, VehicleModel
 from .serializers import (VehicleBrandSerializer, VehicleCategorySerializer,
                           VehicleModelSerializer)
 
-
+# List all vehicle categories for public selection flows.
 class VehicleCategoryListAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -16,7 +16,7 @@ class VehicleCategoryListAPIView(APIView):
         serializer = VehicleCategorySerializer(categories, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
+# List vehicle brands, optionally filtered by category.
 class VehicleBrandListAPIView(APIView):
     permission_classes = [AllowAny]
 
@@ -30,7 +30,7 @@ class VehicleBrandListAPIView(APIView):
         serializer = VehicleBrandSerializer(brands, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
+# List vehicle models, optionally filtered by brand.
 class VehicleModelListAPIView(APIView):
     permission_classes = [AllowAny]
 

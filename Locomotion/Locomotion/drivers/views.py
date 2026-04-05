@@ -8,7 +8,7 @@ from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.parsers import FormParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -20,7 +20,7 @@ from .serializers import (DriverApplicationSerializer, DriverListSerializer,
                           DriverVehicleSerializer)
 from .tasks import send_driver_reminder
 
-
+# Submit or resubmit a driver application for the authenticated user.
 class ApplyDriverView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
@@ -63,8 +63,10 @@ class ApplyDriverView(APIView):
             )
         return Response(serializer.errors, status=400)
 
-
+# List available drivers with optional location filters and caching.
 class DriverListView(APIView):
+    permission_classes = [AllowAny]
+
     def _exclude_requesting_driver(self, request, drivers_data):
         if not getattr(request.user, "is_authenticated", False):
             return drivers_data
@@ -143,8 +145,9 @@ class DriverListView(APIView):
             },
         )
 
-
+# Return the public details for a single active driver.
 class DriverDetailView(APIView):
+    permission_classes = [AllowAny]
 
     def get(self, request, id):
         try:
@@ -173,8 +176,7 @@ class DriverDetailView(APIView):
         serializer = DriverListSerializer(driver, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
-# for driver's dashboard
+# List or create driver vehicle data for the active driver dashboard.
 class DriverVehicleDataView(APIView):
     permission_classes = [IsActiveDriver]
 
@@ -195,8 +197,7 @@ class DriverVehicleDataView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
-# Toggle availability
+# Show or toggle the active driver's availability state.
 class DriverAvailabilityView(APIView):
     permission_classes = [IsActiveDriver]
 
@@ -253,7 +254,7 @@ class DriverAvailabilityView(APIView):
             }
         )
 
-
+# Preview earnings coach statistics for the active driver.
 class DriverCoachPreviewView(APIView):
     permission_classes = [IsActiveDriver]
 
@@ -281,7 +282,7 @@ class DriverCoachPreviewView(APIView):
         )
         return Response(payload, status=status.HTTP_200_OK)
 
-
+# Generate an AI-backed coach plan for the active driver.
 class DriverCoachPlanView(APIView):
     permission_classes = [IsActiveDriver]
 
@@ -472,7 +473,7 @@ class DriverCoachPlanView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
+# Apply coach actions such as reminder creation for the active driver.
 class DriverCoachApplyView(APIView):
     permission_classes = [IsActiveDriver]
 
@@ -597,7 +598,7 @@ class DriverCoachApplyView(APIView):
         )
         return Response({"created": created, "errors": errors}, status=status_code)
 
-
+# List coach reminders created for the active driver.
 class DriverCoachRemindersView(APIView):
     permission_classes = [IsActiveDriver]
 

@@ -4,17 +4,19 @@ from decimal import Decimal
 import razorpay
 from django.conf import settings
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from drivers.permissions import IsActiveDriver
 
 razorpay_client = razorpay.Client(
     auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
 )
 
 
+# Create a Razorpay order to recharge a driver's wallet.
 class CreateWalletRechargeOrderView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsActiveDriver]
 
     def post(self, request):
         try:
@@ -70,9 +72,9 @@ class CreateWalletRechargeOrderView(APIView):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
+# Verify a completed wallet recharge and credit the driver's balance.
 class VerifyWalletRechargeView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsActiveDriver]
 
     def post(self, request):
         razorpay_order_id = request.data.get("razorpay_order_id")

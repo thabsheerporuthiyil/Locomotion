@@ -9,7 +9,7 @@ from bookings.models import RideRequest
 
 from .location_history import query_location_history
 
-
+# Return stored location history for a specific ride to admins.
 class AdminRideLocationHistoryView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -57,7 +57,7 @@ class AdminRideLocationHistoryView(APIView):
             status=status.HTTP_200_OK,
         )
 
-
+# List recent rides that admins can inspect in the location history UI.
 class AdminRideHistoryListView(APIView):
     permission_classes = [IsAdminUser]
 

@@ -8,7 +8,7 @@ from rest_framework.views import APIView
 from .models import VehicleCategory
 from .serializers import VehicleCategorySerializer
 
-
+# List, create, update, or delete vehicle categories as an admin.
 class AdminVehicleCategoryAPIView(APIView):
     permission_classes = [IsAdminUser]
 

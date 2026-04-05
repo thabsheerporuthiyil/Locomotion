@@ -4,7 +4,7 @@ from django.core.cache import cache
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.generics import ListAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -45,28 +45,31 @@ def _store_location(ride_id, role, latitude, longitude, heading=0):
     )
     return payload
 
-
+# List all available districts for ride and driver filtering.
 class DistrictListView(ListAPIView):
     queryset = District.objects.all()
     serializer_class = DistrictSerializer
+    permission_classes = [AllowAny]
 
-
+# List taluks belonging to the requested district.
 class TalukListView(ListAPIView):
     serializer_class = TalukSerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         district = self.request.query_params.get("district")
         return Taluk.objects.filter(district_id=district)
 
-
+# List panchayaths belonging to the requested taluk.
 class PanchayathListView(ListAPIView):
     serializer_class = PanchayathSerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         taluk = self.request.query_params.get("taluk")
         return Panchayath.objects.filter(taluk_id=taluk)
 
-
+# Return the latest cached driver and rider locations for a ride.
 class RideLatestLocationView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -96,7 +99,7 @@ class RideLatestLocationView(APIView):
             }
         )
 
-
+# Update the latest ride location and broadcast it to live listeners.
 class RideLocationUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
