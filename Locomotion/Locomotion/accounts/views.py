@@ -25,7 +25,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from .tasks import send_otp_email
 from google.oauth2 import id_token
 from google.auth.transport import requests
@@ -113,7 +113,10 @@ def _get_driver_access_error(user):
     return None
 
 
+# Register a new account and send an email verification OTP.
 class RegisterView(APIView):
+    permission_classes = [AllowAny]
+
     @swagger_auto_schema(
         request_body=RegisterSerializer,
         responses={201: RegisterSerializer},
@@ -168,7 +171,10 @@ class RegisterView(APIView):
         )
 
 
+# Send or resend an email verification OTP for an unverified account.
 class SendOTPView(APIView):
+    permission_classes = [AllowAny]
+
     @swagger_auto_schema(
         operation_summary="Send or resend OTP to email",
         request_body=SendOTPSerializer,
@@ -205,7 +211,7 @@ class SendOTPView(APIView):
         return Response({"message": "OTP sent"})
 
 
-
+# Verify an email OTP for signup completion or admin sign-in.
 class VerifyOTPView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -279,7 +285,10 @@ class VerifyOTPView(APIView):
         return Response({"message": "Email verified","name": user.name})
 
 
+# Authenticate a web user with email and password and issue JWT tokens.
 class CustomTokenObtainPairView(TokenObtainPairView):
+    permission_classes = [AllowAny]
+
     def post(self, request, *args, **kwargs):
         email = request.data.get("email")
         password = request.data.get("password")
@@ -329,6 +338,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         )
 
 
+# Authenticate an approved driver for the mobile app with email and password.
 class DriverMobileLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -365,6 +375,7 @@ class DriverMobileLoginView(APIView):
         )
 
 
+# Refresh an access token using the refresh cookie or request payload.
 class CookieTokenRefreshView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -394,13 +405,19 @@ class CookieTokenRefreshView(APIView):
             return Response({"error": "Invalid token"}, status=401)
 
 
+# Clear the refresh cookie and end the current authenticated session.
 class LogoutView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         response = Response({"message": "Logged out"})
         return _clear_refresh_cookie(response)
 
 
+# Send a password reset OTP to an existing user email address.
 class ForgotPasswordSendOTPView(APIView):
+    permission_classes = [AllowAny]
+
     @swagger_auto_schema(
         operation_summary="Send OTP for forgot password",
         request_body=ForgotPasswordSendOTPSerializer,
@@ -433,7 +450,10 @@ class ForgotPasswordSendOTPView(APIView):
         return Response({"message": "OTP sent"}, status=status.HTTP_200_OK)
 
 
+# Reset a user password after validating the submitted OTP.
 class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
+
     @swagger_auto_schema(
         operation_summary="Reset password using OTP",
         request_body=ResetPasswordSerializer,
@@ -489,9 +509,12 @@ class ResetPasswordView(APIView):
             {"message": "Password reset successful"},
             status=status.HTTP_200_OK,
         )
-    
 
+
+# Sign in or create a customer account using a Google identity token.
 class GoogleLoginView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         token = request.data.get("token")
 
@@ -539,6 +562,7 @@ class GoogleLoginView(APIView):
         return _issue_auth_response(user, role=user.role)
 
 
+# Sign in an approved driver for the mobile app using a Google identity token.
 class DriverMobileGoogleLoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -587,7 +611,9 @@ class DriverMobileGoogleLoginView(APIView):
             role="driver",
             extra_payload={"is_driver": True},
         )
-    
+
+
+# Generate a QR code and secret for a logged-in user to enable TOTP 2FA.
 class Setup2FAView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -620,6 +646,7 @@ class Setup2FAView(APIView):
         })
 
 
+# Confirm a submitted TOTP code and permanently enable 2FA for the user.
 class Confirm2FAView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -648,7 +675,10 @@ class Confirm2FAView(APIView):
         return Response({"message": "2FA enabled successfully"})
 
 
+# Verify a login-time TOTP code and issue JWT tokens for the user.
 class Verify2FALoginView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request):
         user_id = request.data.get("user_id")
         code = str(request.data.get("code") or "").strip().replace(" ", "")
@@ -690,6 +720,7 @@ class Verify2FALoginView(APIView):
         return response
 
 
+# Disable TOTP 2FA for the currently authenticated user.
 class Disable2FAView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -706,6 +737,7 @@ class Disable2FAView(APIView):
         )
 
 
+# Return and update the profile of the currently authenticated user.
 class MeView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
@@ -776,6 +808,7 @@ class MeView(APIView):
         return response
 
 
+# Store or refresh the Firebase device token for the authenticated user.
 class UpdateFCMTokenView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -822,6 +855,7 @@ class UpdateFCMTokenView(APIView):
         return Response({'message': 'FCM Token updated successfully'}, status=status.HTTP_200_OK)
 
 
+# List, mark, or clear notifications for the authenticated user.
 class NotificationsView(APIView):
     permission_classes = [IsAuthenticated]
 
