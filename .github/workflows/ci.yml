@@ -83,7 +83,7 @@ jobs:
         run: python manage.py migrate --noinput
 
       - name: Run Django tests
-        run: python manage.py test
+        run: python manage.py test accounts.tests bookings.tests drivers.tests location.tests
 
   frontend:
     name: Frontend Lint and Build
