@@ -2,10 +2,11 @@ import random
 import pyotp
 import qrcode
 import base64
+from typing import Any
 from io import BytesIO
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.views import APIView
-from .models import EmailOTP, FCMDevice, Notification
+from .models import EmailOTP, FCMDevice, Notification, User
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import (
@@ -23,7 +24,6 @@ from django.utils import timezone
 from datetime import timedelta
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
-from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from .tasks import send_otp_email
@@ -33,9 +33,8 @@ from django.conf import settings
 from drivers.models import DriverApplication
 from drivers.serializers import DriverApplicationSerializer
 
-User = get_user_model()
-
 OTP_EXPIRY_MINUTES = 2
+
 
 def generate_otp():
     return str(random.randint(100000, 999999))
@@ -70,7 +69,11 @@ def _clear_refresh_cookie(response):
     return response
 
 
-def _issue_auth_response(user, role=None, extra_payload=None):
+def _issue_auth_response(
+    user: User,
+    role: str | None = None,
+    extra_payload: dict[str, Any] | None = None,
+):
     refresh = RefreshToken.for_user(user)
     payload = {
         "access": str(refresh.access_token),
@@ -99,7 +102,7 @@ def _verify_google_identity_token(token):
     )
 
 
-def _get_driver_access_error(user):
+def _get_driver_access_error(user: User):
     if not user.is_active:
         return "Account blocked"
 
@@ -142,14 +145,9 @@ class RegisterView(APIView):
 
         email = serializer.validated_data["email"]
 
-        if existing_user:
-            user = serializer.save()
-            user.is_verified = False
-            user.save(update_fields=["is_verified"])
-        else:
-            user = serializer.save()
-            user.is_verified = False
-            user.save(update_fields=["is_verified"])
+        user = serializer.save()
+        user.is_verified = False
+        user.save(update_fields=["is_verified"])
 
         # Invalidate old OTPs
         EmailOTP.objects.filter(email=email, is_used=False).update(is_used=True)
@@ -185,7 +183,7 @@ class SendOTPView(APIView):
         },
     )
     def post(self, request):
-        email = request.data.get("email")
+        email = (request.data.get("email") or "").strip().lower()
 
         user = User.objects.filter(email=email).first()
         if not user:
@@ -290,7 +288,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
     permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
-        email = request.data.get("email")
+        email = (request.data.get("email") or "").strip().lower()
         password = request.data.get("password")
 
         user = User.objects.filter(email=email).first()
@@ -343,7 +341,7 @@ class DriverMobileLoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        email = request.data.get("email")
+        email = (request.data.get("email") or "").strip().lower()
         password = request.data.get("password")
 
         user = User.objects.filter(email=email).first()
