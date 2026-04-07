@@ -9,6 +9,11 @@ on:
     types:
       - completed
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Docker image tag to deploy. Defaults to the current commit SHA.
+        required: false
+        type: string
 
 concurrency:
   group: deploy-backend-main
@@ -33,16 +38,26 @@ jobs:
         shell: bash
         env:
           EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
-          IMAGE_TAG: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ECR_BACKEND_REPOSITORY: ${{ secrets.ECR_BACKEND_REPOSITORY }}
+          MANUAL_IMAGE_TAG: ${{ inputs.image_tag }}
         run: |
           set -euo pipefail
 
-          SHORT_TAG="$(printf "%s" "$IMAGE_TAG" | cut -c1-12)"
           SSM_POLL_SECONDS=10
           SSM_MAX_ATTEMPTS=180
           SSM_TIMEOUT_SECONDS=2400
           SSM_READY_MAX_ATTEMPTS=12
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            RAW_IMAGE_TAG="${MANUAL_IMAGE_TAG:-}"
+            if [ -z "$RAW_IMAGE_TAG" ]; then
+              RAW_IMAGE_TAG="${GITHUB_SHA}"
+            fi
+          else
+            RAW_IMAGE_TAG="${{ github.event.workflow_run.head_sha }}"
+          fi
 
+          IMAGE_TAG="$(printf "%s" "$RAW_IMAGE_TAG" | cut -c1-12)"
           print_ssm_output() {
             echo "SSM invocation details:"
             aws ssm get-command-invocation \
@@ -91,7 +106,7 @@ jobs:
           cat > commands.json <<EOF
           {
             "commands": [
-              "bash -lc 'set -euxo pipefail; git -c safe.directory=/opt/locomotion -C /opt/locomotion checkout main; git -c safe.directory=/opt/locomotion -C /opt/locomotion pull --ff-only origin main; cd /opt/locomotion; docker build -t locomotion-web:${SHORT_TAG} ./Locomotion/Locomotion; docker save locomotion-web:${SHORT_TAG} | sudo k3s ctr images import -; export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; for attempt in 1 2 3 4 5; do if helm upgrade --install locomotion ./Locomotion/Locomotion/helm/locomotion -n locomotion -f ./Locomotion/Locomotion/helm/locomotion/values-k3s-backend.yaml --set images.backend.tag=${SHORT_TAG} --timeout 10m --atomic; then break; fi; if [ \"$attempt\" = \"5\" ]; then helm status locomotion -n locomotion || true; helm history locomotion -n locomotion || true; exit 1; fi; sleep 30; done; kubectl rollout status deployment/locomotion-locomotion-web -n locomotion --timeout=300s'"
+              "bash -lc 'set -euxo pipefail; git -c safe.directory=/opt/locomotion -C /opt/locomotion checkout main; git -c safe.directory=/opt/locomotion -C /opt/locomotion pull --ff-only origin main; export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; ECR_PASSWORD=$(aws ecr get-login-password --region ${AWS_REGION}); sudo k3s ctr images pull --user AWS:${ECR_PASSWORD} ${ECR_BACKEND_REPOSITORY}:${IMAGE_TAG}; for attempt in 1 2 3 4 5; do if helm upgrade --install locomotion /opt/locomotion/Locomotion/Locomotion/helm/locomotion -n locomotion -f /opt/locomotion/Locomotion/Locomotion/helm/locomotion/values-k3s-backend.yaml --set images.backend.repository=${ECR_BACKEND_REPOSITORY} --set images.backend.tag=${IMAGE_TAG} --set images.backend.pullPolicy=IfNotPresent --timeout 10m --atomic; then break; fi; if [ \"$attempt\" = \"5\" ]; then helm status locomotion -n locomotion || true; helm history locomotion -n locomotion || true; exit 1; fi; sleep 30; done; kubectl rollout status deployment/locomotion-locomotion-web -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-celery -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-celery-beat -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-notification-worker -n locomotion --timeout=300s'"
             ]
           }
           EOF
@@ -106,6 +121,7 @@ jobs:
             --output text)"
 
           echo "SSM command id: $COMMAND_ID"
+          echo "Deploying backend image: ${ECR_BACKEND_REPOSITORY}:${IMAGE_TAG}"
 
           STATUS="Pending"
           for attempt in $(seq 1 "$SSM_MAX_ATTEMPTS"); do
