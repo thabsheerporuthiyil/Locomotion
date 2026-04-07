@@ -1,27 +1,28 @@
-# Locomotion Project Hosting & Infrastructure Documentation
+# Locomotion Project Hosting, Delivery & Infrastructure Documentation
 
-**Version:** 2.0  
-**Date:** 2026-03-31  
-**Status:** Official Documentation
+**Version:** 2.1  
+**Date:** 2026-04-07  
+**Status:** Current Infrastructure Documentation
 
 ---
 
 ## 1. Executive Summary
 
-This document provides a comprehensive technical overview of the Locomotion project's hosting infrastructure. The platform is built as a multi-service ride marketplace system with a React web frontend, a Django backend, a FastAPI AI service, and an Expo mobile driver application.
+This document provides a current technical overview of the Locomotion project's hosting, deployment, and delivery flow. The platform is a multi-service ride marketplace with a React web frontend, a Django backend, a FastAPI AI service, and an Expo mobile driver app.
 
-The project supports two primary deployment models:
+The project currently supports three practical operating modes:
 
-- A unified Docker Compose deployment for local development and single-host operation
-- A Helm-based Kubernetes/K3s deployment for production-style backend hosting
+- Docker Compose for local development and all-in-one single-host operation
+- Helm-based K3s deployment for the production backend runtime
+- GitHub Actions CI/CD for testing, building the backend Docker image, pushing it to AWS ECR, and deploying it to EC2 / k3s through AWS SSM and Helm
 
-The infrastructure uses AWS for media storage and notification queueing, Firebase for push delivery, Redis for cache and messaging, PostgreSQL for transactional data, Qdrant for AI vector search, and Expo EAS for mobile build distribution. The current backend deployment files also show a lightweight K3s hosting model using Traefik, DuckDNS, and cert-manager, with the option to run the AI service either inside the cluster or externally.
+The infrastructure uses PostgreSQL for transactional data, Redis for cache / realtime / broker duties, DynamoDB for ride location history, AWS S3 for media, AWS SQS for notification queueing, Firebase for push delivery, Qdrant for AI vector search, and Expo EAS for mobile build distribution. The current backend runtime is a lightweight single-node K3s deployment on EC2 with Traefik, DuckDNS, cert-manager, and ECR-backed immutable backend images.
 
 ---
 
 ## 2. Infrastructure Architecture Overview
 
-The application is composed of five main layers:
+The application is composed of six main layers:
 
 ### A. Frontend Layer
 
@@ -57,6 +58,7 @@ The application is composed of five main layers:
 
 - **Primary Database:** PostgreSQL
 - **Cache / Broker / Channel Layer:** Redis
+- **Ride History Store:** DynamoDB
 - **Object Storage:** AWS S3 for uploaded media
 - **Notification Queue:** AWS SQS
 - **Push Delivery:** Firebase Cloud Messaging
@@ -66,6 +68,14 @@ The application is composed of five main layers:
 - **Framework:** Expo React Native
 - **Build & Distribution:** Expo EAS
 - **Purpose:** Driver-side mobile operations, ride handling, and live location publishing
+
+### F. Delivery & Deployment Layer
+
+- **CI Platform:** GitHub Actions
+- **Backend Image Registry:** AWS ECR
+- **Remote Execution:** AWS Systems Manager (SSM)
+- **Cluster Delivery:** Helm on single-node K3s running in EC2
+- **Current Pattern:** CI validates code, builds the backend image, pushes it to ECR, and the deploy workflow pulls that exact image into k3s before running `helm upgrade`
 
 ---
 
@@ -116,7 +126,17 @@ The application is composed of five main layers:
   - Django cache
   - Channels layer
   - Celery broker
+- **DynamoDB:** Stores ride location history for admin playback and post-ride tracking analysis
 - **Qdrant:** Stores driver embeddings for AI retrieval
+
+### F. Delivery & Deployment Services
+
+- **CI:** GitHub Actions runs backend tests, frontend lint/build, and mobile lint
+- **Backend Build:** GitHub Actions builds the backend Docker image from `Locomotion/Locomotion/Dockerfile`
+- **Image Registry:** The backend image is pushed to AWS ECR with a short commit-SHA tag
+- **Deployment Trigger:** `Deploy Backend` runs after successful CI on `main` or via manual dispatch
+- **Remote Deploy Execution:** AWS SSM sends the deploy command to the EC2 host
+- **Cluster Rollout:** EC2 pulls the image into `k3s` containerd and Helm upgrades the `locomotion` release
 
 ---
 
@@ -193,18 +213,20 @@ Locomotion/Locomotion/helm/locomotion
 - Migration job
 - HPA for web and AI workloads
 
-### 4.3 Current K3s Backend Deployment Pattern
+### 4.3 Current K3s Backend Runtime Pattern
 
-The file `values-k3s-backend.yaml` shows the current lightweight cluster-style backend deployment.
+The file `values-k3s-backend.yaml` shows the current backend runtime configuration used on the EC2-hosted K3s cluster.
 
 **Key characteristics:**
 
 - **Cluster Type:** K3s
+- **Node Count:** Single-node EC2 cluster
 - **Ingress:** Traefik
 - **TLS:** cert-manager with `letsencrypt-prod`
 - **Public API Host:** `locomotion-api.duckdns.org`
 - **Web Frontend Allowlist Includes:** `https://locomotionride.vercel.app`
 - **Storage Class:** `local-path`
+- **Backend Image Source:** AWS ECR
 - **Bundled Services Enabled:** PostgreSQL and Redis
 - **Bundled Services Disabled:** in-cluster FastAPI AI and Qdrant
 - **AI Mode:** backend points to an external AI endpoint through `aiServiceUrl`
@@ -215,8 +237,26 @@ This means the current backend hosting pattern is a hybrid model:
 - PostgreSQL and Redis can run in-cluster
 - AI can be hosted outside the cluster
 - the web frontend is hosted separately
+- backend images are built outside the server and deployed as immutable ECR tags
 
-### 4.4 Lightweight Free-Tier K3s Mode
+### 4.4 Current GitHub Actions + ECR + SSM Delivery Flow
+
+The current production backend delivery path is:
+
+1. Push code to `main`
+2. Run GitHub Actions `CI`
+3. Run backend tests, frontend lint/build, and mobile lint
+4. Build the backend Docker image in GitHub Actions
+5. Push that image to AWS ECR with a short commit-SHA tag
+6. Trigger `Deploy Backend`
+7. Use AWS SSM to run a remote deploy command on EC2
+8. Pull the already-built image from ECR into `k3s` containerd
+9. Run `helm upgrade --install`
+10. Wait for the web, celery, beat, and notification-worker rollouts to succeed
+
+This means the backend image is no longer built on the EC2 server during deployment. The server only pulls and deploys a previously built artifact.
+
+### 4.5 Lightweight Free-Tier K3s Mode
 
 The file `values-k3s-free.yaml` defines a reduced-resource deployment:
 
@@ -233,9 +273,9 @@ This mode is intended for:
 - demo environments
 - backend-only lightweight deployments
 
-### 4.5 Production-Style Cluster Mode
+### 4.6 Production-Style Cluster Mode
 
-The file `values-production.example.yaml` describes a fuller production approach:
+The file `values-production.example.yaml` describes a fuller production direction:
 
 - registry-hosted immutable images
 - multiple backend replicas
@@ -523,7 +563,26 @@ docker build -t locomotion-fastapi-ai .\Locomotion\ai_service
 
 These images can then be pushed to the registry used by your Helm deployment.
 
-### 12.3 Helm / K3s Deployment
+### 12.3 Current GitHub Actions Backend Delivery Flow
+
+**CI pipeline (`.github/workflows/ci.yml`):**
+
+1. Run backend tests with PostgreSQL and Redis service containers
+2. Run frontend lint and build
+3. Run mobile lint
+4. Build the backend Docker image
+5. Push the backend image to AWS ECR
+
+**Deploy pipeline (`.github/workflows/deploy-backend.yml`):**
+
+1. Trigger after successful `CI` on `main` or via manual dispatch
+2. Verify the EC2 instance is online in AWS Systems Manager
+3. Send a remote shell command to EC2 using SSM
+4. Pull the exact image tag from ECR into `k3s` containerd
+5. Run `helm upgrade --install` with the ECR image repository and tag
+6. Wait for the backend deployments to roll out successfully
+
+### 12.4 Helm / K3s Deployment
 
 **Example install:**
 
@@ -543,7 +602,7 @@ helm upgrade --install locomotion ./helm/locomotion \
   -f ./helm/locomotion/values-production.example.yaml
 ```
 
-### 12.4 React Frontend Build
+### 12.5 React Frontend Build
 
 ```powershell
 cd "c:\Users\user1\Desktop\L\Locomotion React\Locomotion React"
@@ -551,14 +610,14 @@ npm install
 npm run build
 ```
 
-### 12.5 Mobile EAS Build
+### 12.6 Mobile EAS Build
 
 ```bash
 cd "c:\Users\user1\Desktop\L\LocomotionMobile"
 eas build --profile preview --platform android
 ```
 
-### 12.6 Database Management
+### 12.7 Database Management
 
 **Docker mode:**
 
@@ -630,10 +689,19 @@ Migration is handled through the chart's migration job, but manual pod-based mig
 - `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`
 - `EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY`
 
+### CI/CD Secrets
+
+- `AWS_ACCESS_KEY_ID`
+- `AWS_SECRET_ACCESS_KEY`
+- `AWS_REGION`
+- `EC2_INSTANCE_ID`
+- `ECR_BACKEND_REPOSITORY`
+
 ### Secret Handling Recommendation
 
 - use `.env` locally
 - use Kubernetes secrets in cluster deployments
+- use GitHub Actions secrets for CI/CD credentials and deployment identifiers
 - avoid committing real credentials into Helm values or tracked config files
 
 ---
@@ -644,8 +712,11 @@ Migration is handled through the chart's migration job, but manual pod-based mig
 | :--- | :--- | :--- |
 | **PostgreSQL** | Primary relational database | `.env`, Helm values, `settings.py` |
 | **Redis** | Cache, channel layer, Celery broker | `.env`, Docker Compose, Helm values |
+| **DynamoDB** | Ride location history storage | `.env`, Helm values, `location/location_history.py` |
 | **AWS S3** | Media storage | `.env`, Helm values, `settings.py` |
 | **AWS SQS** | Notification queue | `.env`, Helm values, notification worker |
+| **AWS ECR** | Backend Docker image registry | GitHub Actions secrets and CI workflow |
+| **AWS Systems Manager** | Remote deploy execution on EC2 | GitHub Actions deploy workflow and EC2 IAM role |
 | **Firebase** | Push notification delivery | Firebase secret, web frontend, worker |
 | **Qdrant** | Vector database for driver retrieval | Docker Compose, Helm values, AI env |
 | **Gemini / Groq** | LLM providers for AI summaries and coaching | `.env`, Helm secrets |
@@ -667,7 +738,9 @@ For a stable production deployment, the recommended model is:
 
 ### Backend
 
+- Build backend images in CI and push them to AWS ECR
 - Deploy Django, Celery, Beat, and notification worker via Helm on K3s or Kubernetes
+- Use AWS SSM for remote deploy execution rather than building on the server
 
 ### Database and Messaging
 
@@ -690,6 +763,9 @@ For a stable production deployment, the recommended model is:
 
 - `DEBUG=False`
 - `DJANGO_SECRET_KEY` stored securely
+- GitHub Actions secrets configured for AWS, EC2, and ECR
+- ECR repository created and reachable
+- EC2 role has SSM and ECR pull permissions
 - production domains added to `ALLOWED_HOSTS`
 - production frontend origins added to CORS and CSRF settings
 - TLS configured on public ingress
@@ -706,16 +782,16 @@ For a stable production deployment, the recommended model is:
 
 ## 17. Conclusion
 
-Locomotion is hosted as a modular ride-platform stack that can operate in both simple and scalable modes:
+Locomotion is hosted as a modular ride-platform stack that can operate in both simple and production-style modes:
 
 - Docker Compose for unified local and single-host deployment
-- Helm + K3s for production-style backend orchestration
+- GitHub Actions + AWS ECR + AWS SSM + Helm + K3s for production-style backend delivery
 - separate static hosting for the React frontend
 - Expo EAS for mobile distribution
 - AWS-backed storage and queue integrations
 - optional internal or external AI hosting
 
-This gives the project a practical hybrid infrastructure model: lightweight enough for a single-host setup, but structured enough to scale into a cluster-backed deployment when traffic and service load increase.
+This gives the project a practical hybrid infrastructure model: lightweight enough for local development and single-host operation, but structured enough to use immutable backend images, repeatable CI/CD delivery, and cluster-backed backend orchestration in its hosted environment.
 
 ---
 
@@ -726,29 +802,29 @@ This gives the project a practical hybrid infrastructure model: lightweight enou
 
 ```mermaid
 flowchart TD
-    A[Rider App<br/>React Native / Web]
-    B[Driver App<br/>React Native / Web]
-    C[Admin Panel<br/>React on Vercel]
+    A["Rider App<br/>React Native / Web"]
+    B["Driver App<br/>React Native / Web"]
+    C["Admin Panel<br/>React on Vercel"]
 
-    A --> D[Django Backend API<br/>Django REST + Channels]
+    A --> D["Django Backend API<br/>Django REST + Channels"]
     B --> D
     C --> D
 
-    D --> E[PostgreSQL<br/>core app data]
-    D --> F[Redis<br/>cache / channels / celery broker]
-    D --> G[Celery Workers<br/>background jobs]
+    D --> E["PostgreSQL<br/>Core app data"]
+    D --> F["Redis<br/>Cache / channels / Celery broker"]
+    D --> G["Celery Workers<br/>Background jobs"]
     G --> E
-    G --> H[DynamoDB<br/>ride location history]
-    D --> I[S3 / AWS Storage]
-    D --> J[Firebase / Notifications]
+    G --> H["DynamoDB<br/>Ride location history"]
+    D --> I["S3 / AWS Storage"]
+    D --> J["Firebase / Notifications"]
 
-    subgraph AWS EC2
-        K[k3s Single Node Cluster]
-        L[Helm Release]
-        M[Web Pod]
-        N[Celery Pod]
-        O[Celery Beat Pod]
-        P[Notification Worker Pod]
+    subgraph AWS["AWS EC2"]
+        K["k3s Single Node Cluster"]
+        L["Helm Release"]
+        M["Web Pod"]
+        N["Celery Pod"]
+        O["Celery Beat Pod"]
+        P["Notification Worker Pod"]
     end
 
     D -. runs on .-> K
@@ -758,23 +834,23 @@ flowchart TD
     L --> O
     L --> P
 
-    subgraph CI_CD[GitHub Actions CI/CD]
-        Q[CI Pipeline<br/>tests + lint + frontend build]
-        R[Build Backend Docker Image]
-        S[Push Image to AWS ECR]
-        T[Deploy Pipeline]
-        U[AWS SSM]
+    subgraph CICD["GitHub Actions CI/CD"]
+        Q["CI Pipeline<br/>Tests + lint + frontend build"]
+        R["Build Backend Docker Image"]
+        S["Push Image to AWS ECR"]
+        T["Deploy Pipeline"]
+        U["AWS SSM"]
     end
 
     Q --> R --> S --> T --> U --> K
 
-    V[AWS ECR<br/>backend image registry]
+    V["AWS ECR<br/>Backend image registry"]
     S --> V
     U --> V
 
-    B -->|live location updates| D
-    D -->|latest location| F
-    D -->|history write via Celery| H
-    C -->|admin ride playback| H
+    B -->|"Live location updates"| D
+    D -->|"Latest location"| F
+    D -->|"History write via Celery"| H
+    C -->|"Admin ride playback"| H
 
 ```
