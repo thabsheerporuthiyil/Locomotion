@@ -48,6 +48,13 @@ jobs:
           SSM_MAX_ATTEMPTS=180
           SSM_TIMEOUT_SECONDS=2400
           SSM_READY_MAX_ATTEMPTS=12
+
+          if [ -z "${ECR_BACKEND_REPOSITORY:-}" ]; then
+            echo "GitHub secret ECR_BACKEND_REPOSITORY is missing."
+            echo "Expected format: 471914528467.dkr.ecr.ap-south-1.amazonaws.com/locomotion-web"
+            exit 1
+          fi
+
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             RAW_IMAGE_TAG="${MANUAL_IMAGE_TAG:-}"
             if [ -z "$RAW_IMAGE_TAG" ]; then
@@ -106,7 +113,7 @@ jobs:
           cat > commands.json <<EOF
           {
             "commands": [
-              "bash -lc 'set -euxo pipefail; git -c safe.directory=/opt/locomotion -C /opt/locomotion checkout main; git -c safe.directory=/opt/locomotion -C /opt/locomotion pull --ff-only origin main; export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; ECR_PASSWORD=$(aws ecr get-login-password --region ${AWS_REGION}); sudo k3s ctr images pull --user AWS:${ECR_PASSWORD} ${ECR_BACKEND_REPOSITORY}:${IMAGE_TAG}; for attempt in 1 2 3 4 5; do if helm upgrade --install locomotion /opt/locomotion/Locomotion/Locomotion/helm/locomotion -n locomotion -f /opt/locomotion/Locomotion/Locomotion/helm/locomotion/values-k3s-backend.yaml --set images.backend.repository=${ECR_BACKEND_REPOSITORY} --set images.backend.tag=${IMAGE_TAG} --set images.backend.pullPolicy=IfNotPresent --timeout 10m --atomic; then break; fi; if [ \"$attempt\" = \"5\" ]; then helm status locomotion -n locomotion || true; helm history locomotion -n locomotion || true; exit 1; fi; sleep 30; done; kubectl rollout status deployment/locomotion-locomotion-web -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-celery -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-celery-beat -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-notification-worker -n locomotion --timeout=300s'"
+              "bash -lc 'set -euxo pipefail; git -c safe.directory=/opt/locomotion -C /opt/locomotion checkout main; git -c safe.directory=/opt/locomotion -C /opt/locomotion pull --ff-only origin main; export KUBECONFIG=/etc/rancher/k3s/k3s.yaml; ECR_PASSWORD=\$(aws ecr get-login-password --region ${AWS_REGION}); sudo k3s ctr images pull --user AWS:\${ECR_PASSWORD} ${ECR_BACKEND_REPOSITORY}:${IMAGE_TAG}; for attempt in 1 2 3 4 5; do if helm upgrade --install locomotion /opt/locomotion/Locomotion/Locomotion/helm/locomotion -n locomotion -f /opt/locomotion/Locomotion/Locomotion/helm/locomotion/values-k3s-backend.yaml --set images.backend.repository=${ECR_BACKEND_REPOSITORY} --set images.backend.tag=${IMAGE_TAG} --set images.backend.pullPolicy=IfNotPresent --timeout 10m --atomic; then break; fi; if [ \"$attempt\" = \"5\" ]; then helm status locomotion -n locomotion || true; helm history locomotion -n locomotion || true; exit 1; fi; sleep 30; done; kubectl rollout status deployment/locomotion-locomotion-web -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-celery -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-celery-beat -n locomotion --timeout=300s; kubectl rollout status deployment/locomotion-locomotion-notification-worker -n locomotion --timeout=300s'"
             ]
           }
           EOF
