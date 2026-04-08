@@ -1,7 +1,7 @@
 # Locomotion Project Hosting, Delivery & Infrastructure Documentation
 
-**Version:** 2.1  
-**Date:** 2026-04-07  
+**Version:** 2.2  
+**Date:** 2026-04-08  
 **Status:** Current Infrastructure Documentation
 
 ---
@@ -16,7 +16,7 @@ The project currently supports three practical operating modes:
 - Helm-based K3s deployment for the production backend runtime
 - GitHub Actions CI/CD for testing, building the backend Docker image, pushing it to AWS ECR, and deploying it to EC2 / k3s through AWS SSM and Helm
 
-The infrastructure uses PostgreSQL for transactional data, Redis for cache / realtime / broker duties, DynamoDB for ride location history, AWS S3 for media, AWS SQS for notification queueing, Firebase for push delivery, Qdrant for AI vector search, and Expo EAS for mobile build distribution. The current backend runtime is a lightweight single-node K3s deployment on EC2 with Traefik, DuckDNS, cert-manager, and ECR-backed immutable backend images.
+The infrastructure uses PostgreSQL for transactional data, Redis for cache / realtime / broker duties, DynamoDB for ride location history, AWS S3 for media, AWS SQS for notification queueing, Firebase for push delivery, Qdrant for AI vector search, and Expo EAS for mobile build distribution. The current backend runtime is a lightweight single-node K3s deployment on EC2 with Traefik, DuckDNS, cert-manager, ECR-backed immutable backend images, external PostgreSQL, external Redis, and an externally hosted AI service.
 
 ---
 
@@ -227,21 +227,23 @@ The file `values-k3s-backend.yaml` shows the current backend runtime configurati
 - **Web Frontend Allowlist Includes:** `https://locomotionride.vercel.app`
 - **Storage Class:** `local-path`
 - **Backend Image Source:** AWS ECR
-- **Bundled Services Enabled:** PostgreSQL and Redis
-- **Bundled Services Disabled:** in-cluster FastAPI AI and Qdrant
+- **External Database:** PostgreSQL on an external managed endpoint
+- **External Cache / Broker / Channel Layer:** Redis on an external managed endpoint
+- **Bundled Services Disabled:** in-cluster PostgreSQL, Redis, FastAPI AI, and Qdrant
 - **AI Mode:** backend points to an external AI endpoint through `aiServiceUrl`
 
 This means the current backend hosting pattern is a hybrid model:
 
 - Django and workers are hosted in K3s
-- PostgreSQL and Redis can run in-cluster
-- AI can be hosted outside the cluster
+- PostgreSQL is hosted outside the cluster
+- Redis is hosted outside the cluster
+- AI is hosted outside the cluster
 - the web frontend is hosted separately
 - backend images are built outside the server and deployed as immutable ECR tags
 
 ### 4.4 Current GitHub Actions + ECR + SSM Delivery Flow
 
-The current production backend delivery path is:
+The current production backend delivery path on `main` is:
 
 1. Push code to `main`
 2. Run GitHub Actions `CI`
@@ -253,6 +255,8 @@ The current production backend delivery path is:
 8. Pull the already-built image from ECR into `k3s` containerd
 9. Run `helm upgrade --install`
 10. Wait for the web, celery, beat, and notification-worker rollouts to succeed
+
+Manual deploys are also supported through `workflow_dispatch`, where an existing image tag can be deployed without rebuilding the image.
 
 This means the backend image is no longer built on the EC2 server during deployment. The server only pulls and deploys a previously built artifact.
 
@@ -570,17 +574,18 @@ These images can then be pushed to the registry used by your Helm deployment.
 1. Run backend tests with PostgreSQL and Redis service containers
 2. Run frontend lint and build
 3. Run mobile lint
-4. Build the backend Docker image
-5. Push the backend image to AWS ECR
+4. On pushes to `main`, build the backend Docker image
+5. On pushes to `main`, push the backend image to AWS ECR
 
 **Deploy pipeline (`.github/workflows/deploy-backend.yml`):**
 
 1. Trigger after successful `CI` on `main` or via manual dispatch
 2. Verify the EC2 instance is online in AWS Systems Manager
 3. Send a remote shell command to EC2 using SSM
-4. Pull the exact image tag from ECR into `k3s` containerd
-5. Run `helm upgrade --install` with the ECR image repository and tag
-6. Wait for the backend deployments to roll out successfully
+4. Ensure `aws-cli` is available on the EC2 host
+5. Pull the exact image tag from ECR into `k3s` containerd
+6. Run `helm upgrade --install` with the ECR image repository and tag
+7. Wait for the backend deployments to roll out successfully
 
 ### 12.4 Helm / K3s Deployment
 
@@ -765,6 +770,7 @@ For a stable production deployment, the recommended model is:
 - `DJANGO_SECRET_KEY` stored securely
 - GitHub Actions secrets configured for AWS, EC2, and ECR
 - ECR repository created and reachable
+- `aws-cli` available on the EC2 node used for deploys
 - EC2 role has SSM and ECR pull permissions
 - production domains added to `ALLOWED_HOSTS`
 - production frontend origins added to CORS and CSRF settings
