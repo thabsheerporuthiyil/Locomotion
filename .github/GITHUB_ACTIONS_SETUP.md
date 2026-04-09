@@ -6,6 +6,7 @@ This repo uses two GitHub Actions workflows:
   - backend Django tests
   - frontend lint + build
   - mobile lint
+  - backend Docker build + push to AWS ECR on `main`
 - `Deploy Backend`
   - deploys the Django backend to the EC2 / k3s server on pushes to `main`
   - uses AWS Systems Manager (SSM), not SSH
@@ -26,6 +27,8 @@ Add these in:
   - Example: `ap-south-1`
 - `EC2_INSTANCE_ID`
   - Example: `i-0a5fc452d5e5be708`
+- `ECR_BACKEND_REPOSITORY`
+  - Example: `471914528467.dkr.ecr.ap-south-1.amazonaws.com/locomotion-web`
 
 ## EC2 Prerequisites For SSM
 
@@ -45,7 +48,6 @@ Before backend CD can work:
   - `/opt/locomotion`
 - Backend CD assumes k3s uses:
   - `/etc/rancher/k3s/k3s.yaml`
-
 ## Workflow Behavior
 
 ### CI
@@ -76,3 +78,4 @@ After adding the secrets:
    - bookings
    - driver accept
    - live tracking
+   - push notifications

@@ -1,9 +1,0 @@
-{
-  "typeCheckingMode": "basic",
-  "plugins": [
-    {
-      "name": "django-stubs",
-      "djangoSettingsModule": "Locomotion.settings"
-    }
-  ]
-}

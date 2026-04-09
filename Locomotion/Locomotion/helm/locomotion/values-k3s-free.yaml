@@ -21,18 +21,15 @@ appConfig:
   djangoEnv: development
   debug: false
   allowedHosts:
-    - 127.0.0.1
-    - localhost
-    - 13.233.207.178
-    - ec2-13-233-207-178.ap-south-1.compute.amazonaws.com
+    - "*"
   corsAllowedOrigins:
     - http://localhost:5173
-    - http://13.233.207.178
-    - http://ec2-13-233-207-178.ap-south-1.compute.amazonaws.com
+    - http://3.109.231.187
+    - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
   csrfTrustedOrigins:
     - http://localhost:5173
-    - http://13.233.207.178
-    - http://ec2-13-233-207-178.ap-south-1.compute.amazonaws.com
+    - http://3.109.231.187
+    - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
   googleClientId: 1096933293116-39tk0046n27e10gn87evv4ihee40q8qp.apps.googleusercontent.com
   googleAndroidClientId: 1096933293116-jmsndspcrcss1m5pb2jlpdpuvjp4val9.apps.googleusercontent.com
   googleIosClientId: 1096933293116-6bvf71fh3c88brbhrmke9hto6q46c36s.apps.googleusercontent.com
@@ -52,8 +49,8 @@ appConfig:
   firebaseServiceAccountPath: /var/secrets/firebase/firebase-service-account.json
   aiAllowedOrigins:
     - http://localhost:5173
-    - http://13.233.207.178
-    - http://ec2-13-233-207-178.ap-south-1.compute.amazonaws.com
+    - http://3.109.231.187
+    - http://ec2-3.109.231.187.ap-south-1.compute.amazonaws.com
 
 secrets:
   create: false

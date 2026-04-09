@@ -93,6 +93,8 @@ jobs:
       - frontend
       - mobile
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    env:
+      ECR_BACKEND_REPOSITORY: ${{ secrets.ECR_BACKEND_REPOSITORY }}
 
     steps:
       - name: Checkout
@@ -104,6 +106,17 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Validate ECR configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "${ECR_BACKEND_REPOSITORY:-}" ]; then
+            echo "GitHub secret ECR_BACKEND_REPOSITORY is missing."
+            echo "Expected format: 471914528467.dkr.ecr.ap-south-1.amazonaws.com/locomotion-web"
+            exit 1
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -122,7 +135,7 @@ jobs:
           context: ./Locomotion/Locomotion
           file: ./Locomotion/Locomotion/Dockerfile
           push: true
-          tags: ${{ secrets.ECR_BACKEND_REPOSITORY }}:${{ steps.backend_image_tag.outputs.tag }}
+          tags: ${{ env.ECR_BACKEND_REPOSITORY }}:${{ steps.backend_image_tag.outputs.tag }}
           provenance: false
 
   frontend:
