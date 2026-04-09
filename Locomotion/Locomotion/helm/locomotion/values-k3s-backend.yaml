@@ -122,7 +122,7 @@ celeryBeat:
       memory: 256Mi
 
 notificationWorker:
-  enabled: true
+  enabled: false
   replicaCount: 1
   resources:
     requests:
