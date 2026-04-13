@@ -1,0 +1,301 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >> >>
+endobj
+4 0 obj
+<< /Length 5535 >>
+stream
+BT
+/F1 11 Tf
+72 720 Td
+(Locomotion Project Report) Tj
+0 -14 Td
+0 -14 Td
+(Version: 1.0) Tj
+0 -14 Td
+(Date: 2026-04-13) Tj
+0 -14 Td
+(Status: Current) Tj
+0 -14 Td
+0 -14 Td
+(1. Executive Summary) Tj
+0 -14 Td
+0 -14 Td
+(Locomotion is a full-stack ride booking and real-time mobility platform with rider, driver,) Tj
+0 -14 Td
+(and admin workflows. The system combines a React web frontend, a Django + DRF backend with) Tj
+0 -14 Td
+(real-time Channels, a FastAPI AI service, and an Expo React Native mobile app. The production) Tj
+0 -14 Td
+(backend runs on a single-node k3s cluster on AWS EC2 using Helm, with Docker images built in) Tj
+0 -14 Td
+(GitHub Actions and stored in AWS ECR.) Tj
+0 -14 Td
+0 -14 Td
+(2. Architecture Overview) Tj
+0 -14 Td
+0 -14 Td
+(Core runtime components:) Tj
+0 -14 Td
+(Web frontend: React 19 with Vite) Tj
+0 -14 Td
+(Backend API: Django + Django REST Framework) Tj
+0 -14 Td
+(Real-time: Django Channels + Redis) Tj
+0 -14 Td
+(Background jobs: Celery + Celery Beat) Tj
+0 -14 Td
+(AI service: FastAPI + Qdrant + SentenceTransformers + Gemini/Groq) Tj
+0 -14 Td
+(Mobile: Expo React Native \(driver app\)) Tj
+0 -14 Td
+0 -14 Td
+(Core infrastructure services:) Tj
+0 -14 Td
+(PostgreSQL: transactional data) Tj
+0 -14 Td
+(Redis: cache, channel layer, Celery broker) Tj
+0 -14 Td
+(DynamoDB: ride location history) Tj
+0 -14 Td
+(S3: media storage) Tj
+0 -14 Td
+(SQS: notification queue) Tj
+0 -14 Td
+(Firebase Cloud Messaging: push delivery) Tj
+0 -14 Td
+(ECR: backend image registry) Tj
+0 -14 Td
+(EC2 + k3s: runtime cluster) Tj
+0 -14 Td
+0 -14 Td
+(3. Data and Storage) Tj
+0 -14 Td
+0 -14 Td
+(PostgreSQL stores users, drivers, vehicles, bookings, payments, and notifications.) Tj
+0 -14 Td
+(Redis supports real-time Channels and Celery background processing.) Tj
+0 -14 Td
+(DynamoDB stores sampled ride location history for admin playback and analytics.) Tj
+0 -14 Td
+(S3 stores user-uploaded media.) Tj
+0 -14 Td
+(SQS decouples notification delivery from request flow.) Tj
+0 -14 Td
+0 -14 Td
+(4. Notification Flow) Tj
+0 -14 Td
+0 -14 Td
+(Current production notification path:) Tj
+0 -14 Td
+(1. Django publishes notification payloads to SQS.) Tj
+0 -14 Td
+(2. AWS Lambda consumes SQS and sends FCM pushes.) Tj
+0 -14 Td
+0 -14 Td
+(The legacy Kubernetes notification worker remains available for local or fallback use, but the) Tj
+0 -14 Td
+(production Helm values disable it.) Tj
+0 -14 Td
+0 -14 Td
+(5. CI/CD and Deployment) Tj
+0 -14 Td
+0 -14 Td
+(CI \(GitHub Actions\):) Tj
+0 -14 Td
+(Backend tests) Tj
+0 -14 Td
+(Frontend lint and build) Tj
+0 -14 Td
+(Mobile lint) Tj
+0 -14 Td
+(Backend Docker image build and push to ECR) Tj
+0 -14 Td
+0 -14 Td
+(CD \(GitHub Actions\):) Tj
+0 -14 Td
+(Deploy backend via AWS SSM to EC2) Tj
+0 -14 Td
+(Pull image from ECR into k3s containerd) Tj
+0 -14 Td
+(Helm upgrade for the locomotion release) Tj
+0 -14 Td
+0 -14 Td
+(6. Deployment Models) Tj
+0 -14 Td
+0 -14 Td
+(Local development:) Tj
+0 -14 Td
+(Docker Compose runs web, celery, celery-beat, notification-worker, db, redis, qdrant,) Tj
+0 -14 Td
+(fastapi-ai, and nginx.) Tj
+0 -14 Td
+0 -14 Td
+(Production backend:) Tj
+0 -14 Td
+(Helm on k3s \(single node EC2\)) Tj
+0 -14 Td
+(Traefik ingress with TLS) Tj
+0 -14 Td
+(External PostgreSQL and Redis) Tj
+0 -14 Td
+(External S3, SQS, DynamoDB) Tj
+0 -14 Td
+0 -14 Td
+(7. Key Project Capabilities) Tj
+0 -14 Td
+0 -14 Td
+(Rider and driver workflows with real-time updates) Tj
+0 -14 Td
+(Location tracking and playback) Tj
+0 -14 Td
+(Secure payments and wallet flows) Tj
+0 -14 Td
+(Admin monitoring and history playback) Tj
+0 -14 Td
+(AI-assisted driver matching and coaching) Tj
+0 -14 Td
+0 -14 Td
+(---) Tj
+0 -14 Td
+0 -14 Td
+(Tools Documentation) Tj
+0 -14 Td
+0 -14 Td
+(A. Frontend \(React\)) Tj
+0 -14 Td
+0 -14 Td
+(Location: Locomotion React/Locomotion React) Tj
+0 -14 Td
+0 -14 Td
+(Commands:) Tj
+0 -14 Td
+(npm run dev) Tj
+0 -14 Td
+(npm run build) Tj
+0 -14 Td
+(npm run lint) Tj
+0 -14 Td
+0 -14 Td
+(B. Backend \(Django\)) Tj
+0 -14 Td
+0 -14 Td
+(Location: Locomotion/Locomotion) Tj
+0 -14 Td
+0 -14 Td
+(Commands:) Tj
+0 -14 Td
+(python manage.py runserver) Tj
+0 -14 Td
+(python manage.py migrate) Tj
+0 -14 Td
+(python manage.py test) Tj
+0 -14 Td
+0 -14 Td
+(C. AI Service \(FastAPI\)) Tj
+0 -14 Td
+0 -14 Td
+(Location: Locomotion/ai_service) Tj
+0 -14 Td
+0 -14 Td
+(Key env vars:) Tj
+0 -14 Td
+(QDRANT_HOST) Tj
+0 -14 Td
+(QDRANT_PORT) Tj
+0 -14 Td
+(GEMINI_API_KEY) Tj
+0 -14 Td
+(GROQ_API_KEY) Tj
+0 -14 Td
+(LLM_PROVIDER) Tj
+0 -14 Td
+0 -14 Td
+(D. Docker Compose) Tj
+0 -14 Td
+0 -14 Td
+(Location: Locomotion/Locomotion/docker-compose.yml) Tj
+0 -14 Td
+0 -14 Td
+(Services:) Tj
+0 -14 Td
+(web, celery, celery-beat, notification-worker, db, redis, qdrant, fastapi-ai, nginx) Tj
+0 -14 Td
+0 -14 Td
+(E. Helm / k3s) Tj
+0 -14 Td
+0 -14 Td
+(Location: Locomotion/Locomotion/helm/locomotion) Tj
+0 -14 Td
+0 -14 Td
+(Main values file:) Tj
+0 -14 Td
+(values-k3s-backend.yaml) Tj
+0 -14 Td
+0 -14 Td
+(F. CI/CD) Tj
+0 -14 Td
+0 -14 Td
+(Workflows:) Tj
+0 -14 Td
+(.github/workflows/ci.yml) Tj
+0 -14 Td
+(.github/workflows/deploy-backend.yml) Tj
+0 -14 Td
+0 -14 Td
+(Required GitHub secrets:) Tj
+0 -14 Td
+(AWS_ACCESS_KEY_ID) Tj
+0 -14 Td
+(AWS_SECRET_ACCESS_KEY) Tj
+0 -14 Td
+(AWS_REGION) Tj
+0 -14 Td
+(EC2_INSTANCE_ID) Tj
+0 -14 Td
+(ECR_BACKEND_REPOSITORY) Tj
+0 -14 Td
+0 -14 Td
+(G. Notification Lambda) Tj
+0 -14 Td
+0 -14 Td
+(Lambda is managed in AWS Console and triggered by SQS.) Tj
+0 -14 Td
+(The SQS queue is:) Tj
+0 -14 Td
+(locomotion-notifications \(eu-north-1\)) Tj
+0 -14 Td
+0 -14 Td
+(---) Tj
+0 -14 Td
+0 -14 Td
+(System Diagram) Tj
+0 -14 Td
+0 -14 Td
+(See docs/locomotion-system-diagram.svg.) Tj
+0 -14 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000244 00000 n 
+0000005831 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+5901
+%%EOF
